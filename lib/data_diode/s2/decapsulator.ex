@@ -48,8 +48,7 @@ defmodule DataDiode.S2.Decapsulator do
   # Secure Storage Simulation
   # --------------------------------------------------------------------------
 
-  @doc "Simulates writing the data out to the secure environment."
-  defp write_to_secure_storage(src_ip, src_port, payload) do
+  defp write_to_secure_storage(_src_ip, src_port, payload) do
     # In a production environment, this would involve queuing data for
     # transmission across the physical data diode link.
 

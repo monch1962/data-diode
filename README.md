@@ -1,21 +1,131 @@
-# DataDiode
+# Elixir Data Diode Proxy (Service 1 & Service 2)
 
-**TODO: Add description**
+This repository contains an Elixir application simulating a unidirectional data diode proxy. It is designed to demonstrate a secure network architecture where data flows from an unsecured network (Service 1) to a secure network (Service 2) without any possibility of a reverse connection.
 
-## Installation
+The entire application runs under a single Elixir supervisor, but the design cleanly separates the network-facing components (S1) from the secure components (S2), mimicking deployment on two sides of a physical data diode.
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `data_diode` to your list of dependencies in `mix.exs`:
+## 🛑 Architecture Overview
 
-```elixir
-def deps do
-  [
-    {:data_diode, "~> 0.1.0"}
-  ]
-end
+The system is split into two logical services connected by a simulated network path (UDP):
+
+**1. Service 1 (S1): Unsecured Network Ingress (TCP to UDP)**
+The function of Service 1 is to accept connections from potentially untrusted clients (e.g., IoT devices, legacy systems) and forward the data securely.
+
+- **Ingress:** Listens for incoming connections on a TCP socket (LISTEN_PORT).
+
+- **Encapsulation:** When data is received, it extracts the original TCP source IP address (4 bytes) and Port (2 bytes). This metadata is prepended to the original payload, creating a custom packet header.
+
+- **Egress:** Forwards the newly encapsulated binary packet across the simulated security boundary using a UDP socket to Service 2.
+
+**2. Service 2 (S2): Secured Network Egress (UDP to Storage)**
+The function of Service 2 is to safely receive data from the unsecured side, verify the format, and write the contents to the secure system.
+
+- **Ingress:** Listens for encapsulated data on a UDP socket (LISTEN_PORT_S2).
+
+- **Decapsulation:** Parses the custom 6-byte header to recover the original source IP and Port.
+
+- **Processing:** Logs the metadata and simulates writing the original payload to secure storage. Crucially, S2 never opens any TCP connection and does not send any data back.
+
+## 🛠️ Project Setup
+
+### Prerequisites
+
+- Elixir (1.10+)
+
+- Erlang/OTP (21+)
+
+### Installation
+
+Clone the repository:
+
+```git clone [your-repo-link] data_diode```
+```cd data_diode```
+
+Install dependencies:
+
+```mix deps.get```
+
+## ⚙️ Configuration
+
+The application uses environment variables for configuration.
+
+| Variable | Service | Purpose | Default | Example |
+| -------- | ------- | ------- | ------- | ------- |
+| LISTEN_PORT | S1 TCP Listener | Port for incoming client TCP connections. | 8080 | 42000 |
+| LISTEN_PORT_S2 | S2 UDP Listener | Port for internal UDP communication from S1. | 42001 | 42001 |
+
+### Note on Service 1 Encapsulation
+
+Service 1 (implemented in ```tcp_handler.ex``` and ```encapsulator.ex``` - which must be implemented to connect the services) is expected to send UDP packets to a specific target (e.g., ```127.0.0.1:LISTEN_PORT_S2```). If this target IP/Port is configurable, ensure you set it in your ```DataDiode.S1.Encapsulator``` module.
+
+## ▶️ How to Run
+
+### Development Mode (Debugging/Testing)
+
+Use ```mix run --no-halt``` to keep the application running in your console.
+
+``` # This starts both S1 on 42000 and S2 on 42001 (default)
+LISTEN_PORT=42000 mix run --no-halt
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/data_diode>.
+### Production Mode (Deployment)
 
+For reliable, production-ready deployment, generate an Elixir release.
+
+#### Build the Release
+
+```MIX_ENV=prod mix release```
+
+This creates a tarball in ```_build/prod/rel/data_diode/releases/```.
+
+#### Deploy and Run
+
+Copy the release to your server, unpack it, and start the daemon:
+
+```bash
+### Replace path/to/release with the actual directory
+cd path/to/release/data_diode
+
+# Start the application in the background
+LISTEN_PORT=42000 LISTEN_PORT_S2=42001 ./bin/data_diode start
+```
+
+Use ```./bin/data_diode stop``` to gracefully shut it down.
+
+## 🧪 Testing the Flow
+
+Once the application is running:
+
+Open a terminal/client and connect to Service 1 (TCP):
+
+```bash
+# Connect to S1's configured port (e.g., 42000)
+nc localhost 42000
+```
+
+Type a message and hit enter (e.g., ```SENSOR_READING: 25.4```).
+
+Check the logs where the Elixir application is running:
+
+- S1 will log that it received the data and forwarded a UDP packet.
+
+- S2 will immediately log that it received, decapsulated, and simulated the secure write:
+
+```txt
+
+[info] S2: Decapsulated packet from 127.0.0.1:45321. Payload size: 21 bytes.
+[debug] S2: Successfully wrote 21 bytes to data_... (Simulated secure write)
+```
+
+*Note: The IP/Port logged by S2 will be the temporary source of the TCP client connecting to S1.*
+
+## 🗃️ Key Files
+
+| Filepath | Description |
+| --- | --- |
+| ```lib/data_diode/application.ex``` | Supervisor: Defines and starts the S1 and S2 listeners. |
+| ```lib/data_diode/s1/listener.ex``` | Service 1: TCP Listener. Accepts client connections and starts a handler for each.|
+| ```lib/data_diode/s1/tcp_handler.ex``` | Service 1: Handles an individual TCP stream, extracts metadata, and calls the Encapsulator. |
+| ```lib/data_diode/s2/listener.ex``` | Service 2: UDP Listener. Receives packets from S1 and passes them to the Decapsulator.|
+| ```lib/data_diode/s2/decapsulator.ex``` | Service 2: Core security logic. Parses the custom header and simulates the final secure write. |
+| ```mix.exs``` | Project configuration, dependencies, and release definition. |

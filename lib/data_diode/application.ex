@@ -5,12 +5,18 @@ defmodule DataDiode.Application do
   def start(_type, _args) do
     # Define the children processes the supervisor must start and monitor.
     children = [
-      # 🚨 FINAL FIX: Use the full map-style child specification.
-      # This explicitly tells the supervisor to call DataDiode.S1.Listener.start_link() (zero args).
+      # Service 1 TCP Listener (for incoming client data)
       %{
         id: DataDiode.S1.Listener,
         start: {DataDiode.S1.Listener, :start_link, []},
-        # GenServer should be listed as a worker
+        type: :worker
+      },
+      # -----------------------------------------------------------------
+      # Service 2 UDP Listener (for receiving data from S1)
+      %{
+        id: DataDiode.S2.Listener,
+        # S2 Listener also uses start_link/0
+        start: {DataDiode.S2.Listener, :start_link, []},
         type: :worker
       }
     ]
