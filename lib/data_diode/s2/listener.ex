@@ -2,6 +2,9 @@ defmodule DataDiode.S2.Listener do
   use GenServer
   require Logger
 
+  # OpenTelemetry Tracing
+  import OpenTelemetry.Tracer
+
   # Default port for Service 2 UDP reception
   @default_listen_port 42001
 
@@ -40,18 +43,24 @@ defmodule DataDiode.S2.Listener do
   end
 
   @impl true
-  # Handle incoming UDP packets: {:udp, socket, address, port, data}
-  def handle_info({:udp, _socket, _src_ip_tuple, _src_port, raw_data}, state) do
-    # Delegate the decapsulation and processing to the Decapsulator module
-    # Note: The Decapsulator expects data encapsulated with a header,
-    # but for a real-world proxy, the header is added by S1.
+  def handle_info({:udp, _socket, _ip, _port, packet}, listen_socket) do
+    # Create a root span for the packet's journey through S2
+    with_span "diode_s2_packet_received", [] do
+      Logger.debug("S2: Received #{byte_size(packet)} bytes via UDP.")
 
-    # We ignore the UDP source address here, as the *original* TCP source IP/Port
-    # must be extracted from the raw_data header itself, added by S1.
+      # Add useful attributes to the current span
+      set_attributes(%{
+        "diode.service" => "S2",
+        "diode.protocol" => "udp",
+        "diode.packet_size" => byte_size(packet)
+      })
 
-    DataDiode.S2.Decapsulator.process_packet(raw_data)
+      # Delegate the packet processing (trace context automatically continues)
+      DataDiode.S2.Decapsulator.process_packet(packet)
+    end
+    # The span ends here implicitly when with_span returns.
 
-    {:noreply, state}
+    {:noreply, listen_socket}
   end
 
   @impl true

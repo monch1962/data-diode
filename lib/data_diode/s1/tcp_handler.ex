@@ -32,9 +32,7 @@ defmodule DataDiode.S1.TCPHandler do
         catch
           :error, :badarg ->
             # If IP conversion fails, close the socket and stop the process.
-            Logger.error(
-              "S1: Fatal Address Conversion Error for #{inspect(src_ip_tuple)}. Closing socket."
-            )
+            Logger.error("S1: Fatal Address Conversion Error for #{inspect(src_ip_tuple)}. Closing socket.")
 
             :gen_tcp.close(socket)
             {:stop, :bad_address_format}
@@ -42,9 +40,7 @@ defmodule DataDiode.S1.TCPHandler do
 
       {:error, reason} ->
         # Handle failure to get peer name
-        Logger.error(
-          "S1: Failed to get peer name for new socket: #{inspect(reason)}. Closing socket."
-        )
+        Logger.error("S1: Failed to get peer name for new socket: #{inspect(reason)}. Closing socket.")
 
         :gen_tcp.close(socket)
         {:stop, reason}
@@ -54,13 +50,15 @@ defmodule DataDiode.S1.TCPHandler do
   @impl true
   def handle_info({:tcp, _socket, raw_data}, state) do
     # Data received: Encapsulate and send via UDP to Service 2
+    # Explicitly convert raw_data to binary, as it appears to be a charlist in this environment.
+    binary_payload = IO.iodata_to_binary(raw_data)
     DataDiode.S1.Encapsulator.encapsulate_and_send(
       state.src_ip,
       state.src_port,
-      raw_data
+      binary_payload
     )
     |> case do
-      :ok -> Logger.debug("S1: Forwarded #{byte_size(raw_data)} bytes.")
+      :ok -> Logger.info("S1: Forwarded #{byte_size(binary_payload)} bytes.")
       {:error, _} -> Logger.warning("S1: Failed to forward data.")
     end
 

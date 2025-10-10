@@ -1,6 +1,8 @@
 defmodule DataDiode.S1.Listener do
   use GenServer
   require Logger
+  # OpenTelemetry Tracing
+  import OpenTelemetry.Tracer
 
   # Default port if the environment variable is not set
   @default_listen_port 8080
@@ -42,22 +44,27 @@ defmodule DataDiode.S1.Listener do
 
   @impl true
   def handle_info(:accept_loop, listen_socket) do
-    # Use :gen_tcp.accept/1 for the non-blocking loop
     case :gen_tcp.accept(listen_socket) do
       {:ok, client_socket} ->
-        # Successfully accepted a connection. Start a new handler process.
-        DataDiode.S1.TCPHandler.start_link(client_socket)
-
-      # :eagain means no connection is ready; this is normal
-      {:error, :eagain} ->
-        :ok
-
+        # Create a span to trace the acceptance and delegation process
+        with_span "diode_s1_connection_accepted", [] do
+          Logger.info("S1: New connection accepted.")
+          set_attributes(%{
+            "diode.service" => "S1",
+            "diode.protocol" => "tcp",
+            "diode.event" => "connection_accepted"
+          })
+          # Delegate the client socket to the TCP Handler process
+          # Link the handler to the listener so crashes are propagated and logged.
+          {:ok, tcp_handler_pid} = DataDiode.S1.TCPHandler.start_link(client_socket)
+          :gen_tcp.controlling_process(client_socket, tcp_handler_pid)
+        end
+        # Continue the loop to accept the next connection
+        Process.send(self(), :accept_loop, [])
       {:error, reason} ->
-        Logger.error("S1: Error accepting connection: #{inspect(reason)}")
+        Logger.warning("S1: TCP accept error: #{inspect(reason)}. Continuing loop.")
+        Process.send(self(), :accept_loop, [])
     end
-
-    # Schedule the next check immediately
-    send(self(), :accept_loop)
     {:noreply, listen_socket}
   end
 

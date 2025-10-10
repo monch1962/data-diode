@@ -1,67 +1,85 @@
 defmodule DataDiode.S2.Decapsulator do
   require Logger
 
+  # OpenTelemetry Tracing
+  import OpenTelemetry.Tracer
+
   # --------------------------------------------------------------------------
   # API Function
   # --------------------------------------------------------------------------
 
-  @doc """
-  Processes a raw UDP packet buffer by decapsulating the metadata
-  (IP, Port) and then writing the payload to storage.
-  """
-  def process_packet(raw_data) do
-    # The expected header size is 4 bytes (IP) + 2 bytes (Port) = 6 bytes
-    case byte_size(raw_data) do
-      size when size < 6 ->
-        Logger.warning("S2: Received malformed packet (size < 6). Dropping.")
-        :malformed_packet
+  @doc "Decapsulates a UDP packet to extract the original TCP payload and metadata."
+  def process_packet(packet) do
+    # Start a nested span for parsing the raw packet header
+    with_span "diode_s2_parse_header", [] do
+      case parse_header(packet) do
+        {:ok, src_ip, src_port, payload} ->
+          set_attributes(%{
+            "diode.source_ip" => src_ip,
+            "diode.source_port" => src_port
+          })
+          Logger.info("S2: Decapsulated packet from #{src_ip}:#{src_port}. Payload size: #{byte_size(payload)} bytes.")
+          write_to_secure_storage(src_ip, src_port, payload)
 
-      _ ->
-        # 1. Decapsulate the header using pattern matching on the binary
-        # We assume the IP is IPv4: <<b1, b2, b3, b4>>
-        # Port is a 16-bit unsigned integer: <<port::16>>
-        case raw_data do
-          <<b1, b2, b3, b4, port::16, payload::binary>> ->
-            # 2. Reconstruct the IP address string
-            ip_tuple = {b1, b2, b3, b4}
-            # We use :inet.ntoa/1 to convert the tuple back to the display string
-            src_ip_string = :inet.ntoa(ip_tuple)
-
-            # 3. Simulate the security check and write to storage
-            Logger.info(
-              "S2: Decapsulated packet from #{src_ip_string}:#{port}. Payload size: #{byte_size(payload)} bytes."
-            )
-
-            # 🚨 CRITICAL DIODE LOGIC: This is the egress point.
-            # In a real diode, data is passed to a high-assurance file writer
-            # or a second network interface (the secure side).
-            write_to_secure_storage(src_ip_string, port, payload)
-
-          _ ->
-            Logger.warning("S2: Received packet with invalid header structure. Dropping.")
-            :invalid_header
-        end
+        {:error, reason} ->
+          record_exception(%RuntimeError{message: to_string(reason)}) # Record exception in the span
+          Logger.error("S2: Failed to parse header: #{reason}")
+          :error
+      end
     end
+  end
+
+  # --------------------------------------------------------------------------
+  # Internal Parsing Logic
+  # --------------------------------------------------------------------------
+
+  # Parses the 6-byte header (4-byte IP, 2-byte port) from the payload.
+  defp parse_header(<<ip_binary::binary-4, port::integer-unsigned-big-16, payload::binary>>) do
+    case binary_to_ip(ip_binary) do
+      {:ok, ip_string} ->
+        {:ok, ip_string, port, payload}
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # Fallback for packets that are too short to contain the header.
+  defp parse_header(_packet) do
+    {:error, :invalid_packet_size}
+  end
+
+  # Converts a 4-byte binary into an IP address string.
+  defp binary_to_ip(<<a, b, c, d>>) do
+    {:ok, "#{a}.#{b}.#{c}.#{d}"}
+  end
+
+  defp binary_to_ip(_) do
+    {:error, :invalid_ip_binary}
   end
 
   # --------------------------------------------------------------------------
   # Secure Storage Simulation
   # --------------------------------------------------------------------------
 
+  # Helper to simulate writing the data out to the secure environment.
   defp write_to_secure_storage(_src_ip, src_port, payload) do
-    # In a production environment, this would involve queuing data for
-    # transmission across the physical data diode link.
+    # Create a nested span to measure the latency of the "secure write" step
+    with_span "diode_s2_secure_write", [] do
+      # Simulate writing data to a file on the secure side
+      file_name = "data_#{System.os_time()}_#{src_port}.dat"
 
-    # Simulate writing data to a file on the secure side
-    file_name = "data_#{System.os_time()}_#{src_port}.dat"
+      # Add relevant attributes to the span
+      set_attributes(%{
+        "diode.write.filename" => file_name,
+        "diode.write.bytes" => byte_size(payload)
+      })
 
-    # We log the action to show it succeeded
-    Logger.debug(
-      "S2: Successfully wrote #{byte_size(payload)} bytes to #{file_name}. (Simulated secure write)"
-    )
-
-    # For demonstration, we could write to a file, but we keep it simple here.
-    # File.write(file_name, payload)
+      # We log the action to show it succeeded
+      Logger.debug(
+        "S2: Successfully wrote #{byte_size(payload)} bytes to #{file_name}. (Simulated secure write)"
+      )
+    end
+    # The span ends here.
 
     :ok
   end

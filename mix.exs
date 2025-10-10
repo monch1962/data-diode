@@ -7,14 +7,11 @@ defmodule DataDiode.MixProject do
       version: "0.1.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
-      # 🚨 FIX: Removed external compilers that were causing the "task not found" error.
-      compilers: Mix.compilers(),
       preferred_cli_env: [
         release: :prod,
         test: :test
       ],
       # 🚨 FINAL FIX: Changed conflicting :applications key back to standard :extra_applications.
-      extra_applications: applications(),
       deps: deps(),
       releases: [
         data_diode: [
@@ -27,21 +24,36 @@ defmodule DataDiode.MixProject do
 
   # Configuration for the OTP application
   # This function now correctly populates the :extra_applications list.
-  defp applications do
+  def application do
     [
-      :logger,
-      :runtime_tools,
-      :mox # Ensure Mox is loaded for test environment compilation
+      mod: {DataDiode.Application, []},
+      # Ensure all required applications, including OTel, are started
+      extra_applications: [
+        :logger,
+        :runtime_tools,
+        # For networking functions
+        :inets,
+        # For secure transport
+        :ssl,
+        # OTel depends on telemetry
+        :opentelemetry_api,
+        :opentelemetry_exporter,
+        :opentelemetry
+      ]
     ]
   end
 
   # Dependencies can be any of those defined in Hex, other Mix projects or git
   defp deps do
     [
-      # 🚨 FINAL ATTEMPT FIX: Removing 'only:' to ensure Mox is compiled and available in all environments,
-      # forcing the compiler to see the macros.
-      {:mox, "~> 1.0"},
-      # Add other dependencies here as needed
+      {:logger_json, "~> 5.0"},
+      # OpenTelemetry Tracing Dependencies
+      {:opentelemetry_api, "~> 1.0"},
+      {:opentelemetry, "~> 1.0"},
+      # Use the Exporter for console output and eventual external collection
+      {:opentelemetry_exporter, "~> 1.0"},
+      # Mox dependency for testing (fixed to run globally due to compile error)
+      {:mox, "~> 1.0"}
     ]
   end
 end
