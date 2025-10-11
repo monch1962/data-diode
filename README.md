@@ -1,8 +1,30 @@
-# Elixir Data Diode Proxy (Service 1 & Service 2)
+# Data Diode
 
 This repository contains an Elixir application simulating a unidirectional data diode proxy. It is designed to demonstrate a secure network architecture where data flows from an unsecured network (Service 1) to a secure network (Service 2) without any possibility of a reverse connection.
 
 The entire application runs under a single Elixir supervisor, but the design cleanly separates the network-facing components (S1) from the secure components (S2), mimicking deployment on two sides of a physical data diode.
+
+## 🤔 Why not just use a firewall?
+
+While firewalls are essential components of network security, a data diode offers a fundamentally different and stronger guarantee of unidirectional data flow, particularly in high-security environments.
+
+**Firewall:**
+
+* **Function:** A firewall acts as a gatekeeper, inspecting network traffic and enforcing rules to permit or deny communication based on IP addresses, ports, protocols, and sometimes application-layer content.
+* **Bidirectional by Design:** Firewalls are inherently bidirectional. They can be configured to allow traffic in one direction, but their underlying architecture is capable of two-way communication. This means there's always a theoretical (and sometimes practical) risk of misconfiguration, vulnerabilities, or advanced attacks that could bypass the rules and establish a reverse channel.
+* **Software-based:** Most firewalls are software-based, running on general-purpose computing platforms, making them susceptible to software bugs, exploits, and complex attack vectors.
+
+**Data Diode (Unidirectional Gateway):**
+
+* **Function:** A data diode is a hardware-enforced security device that physically prevents data from flowing in more than one direction. It typically uses optical technology or specialized electronics to ensure that a return path for data is impossible.
+* **Physical Unidirectionality:** Its core strength lies in its physical design. There is no electrical or optical path for data to travel back, making it immune to misconfiguration or software vulnerabilities that could create a reverse channel.
+* **Use Cases:** Data diodes are used in environments where absolute assurance of one-way data flow is critical, such as:
+  * **Critical Infrastructure (SCADA/ICS):** Protecting operational technology networks from external threats while allowing monitoring data out.
+  * **Military and Government:** Ensuring classified networks remain isolated from less secure networks.
+  * **Nuclear Facilities:** Preventing control signals from leaving a secure zone while allowing sensor data to be extracted.
+  * **Industrial Control Systems:** Isolating control networks from enterprise networks.
+
+**In summary:** While a firewall attempts to *manage* bidirectional traffic, a data diode *physically enforces* unidirectional traffic. For scenarios demanding the highest level of assurance against reverse data flow, a data diode provides a security guarantee that a firewall cannot. This Elixir application simulates the logical separation and one-way data flow that a physical data diode provides.
 
 ## 🛑 Architecture Overview
 
@@ -11,28 +33,28 @@ The system is split into two logical services connected by a simulated network p
 **1. Service 1 (S1): Unsecured Network Ingress (TCP to UDP)**
 The function of Service 1 is to accept connections from potentially untrusted clients (e.g., IoT devices, legacy systems) and forward the data securely.
 
-- **Ingress:** Listens for incoming connections on a TCP socket (LISTEN_PORT).
+* **Ingress:** Listens for incoming connections on a TCP socket (LISTEN_PORT).
 
-- **Encapsulation:** When data is received, it extracts the original TCP source IP address (4 bytes) and Port (2 bytes). This metadata is prepended to the original payload, creating a custom packet header.
+* **Encapsulation:** When data is received, it extracts the original TCP source IP address (4 bytes) and Port (2 bytes). This metadata is prepended to the original payload, creating a custom packet header.
 
-- **Egress:** Forwards the newly encapsulated binary packet across the simulated security boundary using a UDP socket to Service 2.
+* **Egress:** Forwards the newly encapsulated binary packet across the simulated security boundary using a UDP socket to Service 2.
 
 **2. Service 2 (S2): Secured Network Egress (UDP to Storage)**
 The function of Service 2 is to safely receive data from the unsecured side, verify the format, and write the contents to the secure system.
 
-- **Ingress:** Listens for encapsulated data on a UDP socket (LISTEN_PORT_S2).
+* **Ingress:** Listens for encapsulated data on a UDP socket (LISTEN_PORT_S2).
 
-- **Decapsulation:** Parses the custom 6-byte header to recover the original source IP and Port.
+* **Decapsulation:** Parses the custom 6-byte header to recover the original source IP and Port.
 
-- **Processing:** Logs the metadata and simulates writing the original payload to secure storage. Crucially, S2 never opens any TCP connection and does not send any data back.
+* **Processing:** Logs the metadata and simulates writing the original payload to secure storage. Crucially, S2 never opens any TCP connection and does not send any data back.
 
 ## 🛠️ Project Setup
 
 ### Prerequisites
 
-- Elixir (1.10+)
+* Elixir (1.10+)
 
-- Erlang/OTP (21+)
+* Erlang/OTP (21+)
 
 ### Installation
 
@@ -107,9 +129,9 @@ Type a message and hit enter (e.g., ```SENSOR_READING: 25.4```).
 
 Check the logs where the Elixir application is running:
 
-- S1 will log that it received the data and forwarded a UDP packet.
+* S1 will log that it received the data and forwarded a UDP packet.
 
-- S2 will immediately log that it received, decapsulated, and simulated the secure write:
+* S2 will immediately log that it received, decapsulated, and simulated the secure write:
 
 ```txt
 
