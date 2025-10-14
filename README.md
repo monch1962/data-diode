@@ -114,6 +114,51 @@ LISTEN_PORT=42000 LISTEN_PORT_S2=42001 ./bin/data_diode start
 
 Use ```./bin/data_diode stop``` to gracefully shut it down.
 
+### Building for Nerves (Raspberry Pi)
+
+This project can be built as a Nerves firmware for various embedded devices, including a wide range of Raspberry Pi models.
+
+**Prerequisites:**
+
+* [Install Nerves](https://hexdocs.pm/nerves/installation.html)
+
+**Supported Raspberry Pi Models:**
+
+To build for a specific Raspberry Pi model, you must use the correct `MIX_TARGET` environment variable and ensure the corresponding `nerves_system_*` dependency is included in your `mix.exs` file.
+
+| Target Device | `MIX_TARGET` | Required Dependency in `mix.exs` |
+| :--- | :--- | :--- |
+| Raspberry Pi 5 | `rpi5` | `nerves_system_rpi5` |
+| Raspberry Pi 4 | `rpi4` | `nerves_system_rpi4` |
+| Raspberry Pi 3 (A+, B, B+), Zero 2 W | `rpi3a` | `nerves_system_rpi3a` |
+| Raspberry Pi 2 | `rpi2` | `nerves_system_rpi2` |
+| Raspberry Pi (A+, B, B+) | `rpi` | `nerves_system_rpi` |
+| Raspberry Pi Zero, Zero W | `rpi0` | `nerves_system_rpi0` |
+
+*Note: This project is pre-configured with `nerves_system_rpi4`. To target other models, you will need to add the appropriate dependency to the `nerves_deps/1` function in `mix.exs`.*
+
+**Building the Firmware:**
+
+1. **Set the Target:** Export the `MIX_TARGET` for your specific Raspberry Pi model. For example, for a Raspberry Pi 3 B+:
+
+    ```bash
+    export MIX_TARGET=rpi3a
+    ```
+
+2. **Install Dependencies:** Fetch the correct dependencies for your target.
+
+    ```bash
+    mix deps.get
+    ```
+
+3. **Build Firmware:** Create the firmware file.
+
+    ```bash
+    mix firmware
+    ```
+
+This will create a `.fw` file (e.g., `data_diode.fw`) in the `_build/<target>_dev/nerves/images/` directory. You can then burn this file to an SD card using the command `mix burn`.
+
 ## 🧪 Testing the Flow
 
 Once the application is running:

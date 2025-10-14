@@ -3,28 +3,28 @@ defmodule DataDiode.Application do
 
   @impl true
   def start(_type, _args) do
-  # Define the children processes the supervisor must start and monitor.
-  children = [
+    children = if Mix.target() == :host do
+      [
+        # Service 1: TCP Listener (S1)
+        {
+          DataDiode.S1.Listener,
+          []
+        },
+        # Service 2: UDP Listener (S2) - RESTORED
+        {
+          DataDiode.S2.Listener,
+          []
+        }
+      ]
+    else
+      # For Nerves, start network and other embedded-related processes
+      [
+        # Start the VintageNet supervisor
+        {VintageNet, []}
+      ]
+    end
 
-    # 2. Service 1: TCP Listener (S1)
-    %{
-      id: DataDiode.S1.Listener,
-      start: {DataDiode.S1.Listener, :start_link, []},
-      type: :worker
-    },
-
-    # 3. Service 2: UDP Listener (S2) - RESTORED
-    %{
-      id: DataDiode.S2.Listener,
-      start: {DataDiode.S2.Listener, :start_link, []},
-      type: :worker
-    }
-  ]
-
-  # Define the supervision strategy: :one_for_one
-  opts = [strategy: :one_for_one, name: DataDiode.Supervisor]
-
-  # Start the supervisor with the defined children
-  Supervisor.start_link(children, opts)
-end
+    opts = [strategy: :one_for_one, name: DataDiode.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
 end
