@@ -1,0 +1,33 @@
+[Unit]
+Description=Data Diode Elixir Service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+
+# EDIT THIS: Path to your unpacked release
+WorkingDirectory=/home/pi/data_diode
+
+# EDIT THESE: Environment variables for your network
+Environment=LISTEN_IP=0.0.0.0
+Environment=LISTEN_PORT=8080
+Environment=LISTEN_IP_S2=127.0.0.1
+Environment=LISTEN_PORT_S2=42001
+Environment=MIX_ENV=prod
+
+ExecStart=/home/pi/data_diode/bin/data_diode start
+ExecStop=/home/pi/data_diode/bin/data_diode stop
+
+# Restarts automatically on failure or power loss recovery
+Restart=always
+RestartSec=5
+
+# Health and security settings
+# PrivateTmp=true
+# ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

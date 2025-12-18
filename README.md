@@ -105,7 +105,40 @@ Instructions for technicians deploying in isolated OT networks:
    ./bin/data_diode start
    ```
 
-## 🛠️ Troubleshooting for Remote Technicians
+## � Power Recovery & Persistence
+
+In remote deployments, power cuts are a common occurrence. To ensure the Data Diode resumes operation automatically after power is restored to the Raspberry Pi:
+
+### 1. Systemd Service Deployment
+Technicians should use `systemd` to manage the application. This ensures the app starts on boot and restarts automatically if it ever exits.
+
+A template is provided in [`deploy/data_diode.service.sample`](file:///Users/davidm/Projects/elixir-spike/data_diode/deploy/data_diode.service.sample). To use it:
+
+1. Copy the sample file:
+   ```bash
+   sudo cp deploy/data_diode.service.sample /etc/systemd/system/data_diode.service
+   ```
+2. Edit the file to match the local network configuration:
+   ```bash
+   sudo nano /etc/systemd/system/data_diode.service
+   ```
+3. Enable and start the service:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable data_diode
+   sudo systemctl start data_diode
+   ```
+
+### 2. Startup Resilience
+The application is designed to be "cold-start" resilient:
+- **Stateless Recovery**: S1 and S2 do not maintain long-term session state. Once the service is up, it is immediately ready to handle new packets.
+- **Retry Logic**: If the OS takes time to release ports after a hard reboot, the Elixir supervisor will automatically retry binding (20 attempts every 5 seconds).
+- **Network Dependency**: The `After=network.target` directive ensures the app waits for the network stack before attempting to bind listeners.
+
+### 3. SD Card Protection
+To prevent filesystem corruption during power loss, it is highly recommended to use the Raspberry Pi's "Overlay File System" (via `raspi-config`) to make the system partition read-only.
+
+## �🛠️ Troubleshooting for Remote Technicians
 
 If the diode stops forwarding data, follow these steps:
 
