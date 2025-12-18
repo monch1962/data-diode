@@ -219,3 +219,5 @@ mix test --cover
 | `config/runtime.exs` | Environment variable binding. |
 | `OPERATIONS.md` | SOC Monitoring (SLIs, SLOs, SLAs). |
 | `TROUBLESHOOTING.md` | Field Engineering Field Guide. |
+| `PACKAGING.md` | Raspberry Pi Packaging Options (Nerves, .deb). |
+| `HARDWARE.md` | Industrial Hardware Recommendations. |

@@ -45,14 +45,24 @@ RUN mix compile && \
 FROM alpine:3.18.4 AS release_stage
 
 # Install the Erlang/Elixir runtime dependencies (e.g., required by a release)
-RUN apk add --no-cache bash openssl ncurses-libs
+RUN apk add --no-cache bash openssl ncurses-libs iproute2
 
 # Set the working directory
 WORKDIR /app
 
+# Set default operational environment variables
+ENV LISTEN_IP=0.0.0.0
+ENV LISTEN_PORT=8080
+ENV LISTEN_IP_S2=0.0.0.0
+ENV LISTEN_PORT_S2=42001
+
 # Copy the compiled release from the build stage.
 # Replace `your_app_name` with the actual name of your Elixir application (from mix.exs)
 COPY --from=build_stage _build/prod/rel/data_diode/ ./
+
+# Copy operational scripts from the build stage
+COPY --from=build_stage /app/bin/*.sh ./bin/
+RUN chmod +x ./bin/*.sh
 
 # Define the command to run your Elixir release
 CMD ["/app/bin/data_diode", "start"]
