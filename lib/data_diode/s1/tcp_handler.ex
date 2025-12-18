@@ -1,10 +1,9 @@
 defmodule DataDiode.S1.TCPHandler do
-  use GenServer
+  use GenServer, restart: :temporary
   require Logger
 
   @doc "Starts a new handler process for an accepted socket."
-  # FIX: Options for GenServer.start_link must be in a list.
-  # We remove the invalid name registration attempt and pass an empty list.
+  @spec start_link(:gen_tcp.socket()) :: {:ok, pid()} | {:error, term()}
   def start_link(socket),
     do: GenServer.start_link(__MODULE__, socket, [])
 
@@ -14,57 +13,69 @@ defmodule DataDiode.S1.TCPHandler do
 
   @impl true
   def init(socket) do
-    # 1. Extract source IP and Port from the accepted socket
+    # Defer activation and metadata gathering until after the controlling_process handover.
+    Logger.debug("S1: TCPHandler #{inspect(self())} init for socket #{inspect(socket)}")
+    {:ok, %{socket: socket, src_ip: "unknown", src_port: 0}}
+  end
+
+  @impl true
+  def handle_info(:activate, %{socket: socket} = state) do
+    Logger.debug("S1: TCPHandler #{inspect(self())} activating socket #{inspect(socket)}")
     case :inet.peername(socket) do
-      {:ok, {src_ip_tuple, src_port}} ->
-        # Robustly handle IP tuple conversion. We use a try/catch block to safely
-        # convert the IP tuple to a string, handling :badarg (e.g., from IPv6)
-        # gracefully by stopping the process instead of crashing.
-        try do
-          src_ip_string = :inet.ntoa(src_ip_tuple)
-
-          Logger.info("S1: New connection from #{src_ip_string}:#{src_port}")
-
-          # Set socket to receive data passively (:once) to manage backpressure
-          :inet.setopts(socket, active: :once)
-
-          {:ok, %{socket: socket, src_ip: src_ip_string, src_port: src_port}}
-        catch
-          :error, :badarg ->
-            # If IP conversion fails, close the socket and stop the process.
-            Logger.error("S1: Fatal Address Conversion Error for #{inspect(src_ip_tuple)}. Closing socket.")
-
+      {:ok, {ip, port}} ->
+        src_ip = :inet.ntoa(ip) |> to_string()
+        # Now that we should have ownership, set active: :once
+        case :inet.setopts(socket, [active: :once, mode: :binary]) do
+          :ok ->
+            {:noreply, %{state | src_ip: src_ip, src_port: port}}
+          {:error, reason} when reason in [:einval, :enotconn, :closed] ->
+            Logger.info("S1: Client disconnected before activation (setopts).")
             :gen_tcp.close(socket)
-            {:stop, :bad_address_format}
+            {:stop, :normal, state}
+          {:error, reason} ->
+            Logger.error("S1: Failed to activate handler: #{inspect(reason)}. Closing socket.")
+            :gen_tcp.close(socket)
+            {:stop, reason, state}
         end
 
-      {:error, reason} ->
-        # Handle failure to get peer name
-        Logger.error("S1: Failed to get peer name for new socket: #{inspect(reason)}. Closing socket.")
-
+      {:error, reason} when reason in [:einval, :enotconn, :closed] ->
+        Logger.info("S1: Client disconnected before activation (peername).")
         :gen_tcp.close(socket)
-        {:stop, reason}
+        {:stop, :normal, state}
+
+      {:error, reason} ->
+        Logger.error("S1: Could not get peername during activation: #{inspect(reason)}")
+        :gen_tcp.close(socket)
+        {:stop, reason, state}
     end
   end
+
+  # OT Hardening: Limit max payload to 1MB to protect memory
+  @max_payload_size 1_048_576
 
   @impl true
   def handle_info({:tcp, _socket, raw_data}, state) do
     # Data received: Encapsulate and send via UDP to Service 2
-    # Explicitly convert raw_data to binary, as it appears to be a charlist in this environment.
     binary_payload = IO.iodata_to_binary(raw_data)
-    DataDiode.S1.Encapsulator.encapsulate_and_send(
+
+    if byte_size(binary_payload) > @max_payload_size do
+      Logger.warning("S1: Dropping oversized packet from #{state.src_ip} (#{byte_size(binary_payload)} bytes)")
+      # Re-arm and continue
+      :inet.setopts(state.socket, active: :once)
+      {:noreply, state}
+    else
+      encapsulator().encapsulate_and_send(
       state.src_ip,
       state.src_port,
       binary_payload
     )
-    |> case do
-      :ok -> Logger.info("S1: Forwarded #{byte_size(binary_payload)} bytes.")
-      {:error, _} -> Logger.warning("S1: Failed to forward data.")
-    end
 
-    # Re-arm the socket to listen for the next packet
-    :inet.setopts(state.socket, active: :once)
-    {:noreply, state}
+    Logger.info("S1: Forwarded #{byte_size(binary_payload)} bytes.")
+
+      # Re-arm the socket to listen for the next packet
+      :inet.setopts(state.socket, active: :once)
+      {:noreply, state}
+    end
   end
 
   # IoT device closed the connection
@@ -81,6 +92,19 @@ defmodule DataDiode.S1.TCPHandler do
     {:stop, :shutdown, state}
   end
 
+  @impl true
+  def handle_info(:accept_loop, state) do
+    # This is actually handled by S1.Listener, but if it ends up here by accident (it shouldn't),
+    # we just ignore it.
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(msg, state) do
+    Logger.debug("S1: TCPHandler received unexpected message: #{inspect(msg)}")
+    {:noreply, state}
+  end
+
   # --------------------------------------------------------------------------
   # Termination
   # --------------------------------------------------------------------------
@@ -91,5 +115,9 @@ defmodule DataDiode.S1.TCPHandler do
     :gen_tcp.close(socket)
     Logger.info("S1: Handler terminated for #{src_ip}.")
     :ok
+  end
+
+  defp encapsulator do
+    Application.get_env(:data_diode, :encapsulator, DataDiode.S1.Encapsulator)
   end
 end

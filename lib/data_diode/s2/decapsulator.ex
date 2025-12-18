@@ -9,6 +9,8 @@ defmodule DataDiode.S2.Decapsulator do
   # --------------------------------------------------------------------------
 
   @doc "Decapsulates a UDP packet to extract the original TCP payload and metadata."
+  @callback process_packet(binary()) :: :ok | {:error, term()}
+  @spec process_packet(binary()) :: :ok | {:error, term()}
   def process_packet(packet) do
     # Start a nested span for parsing the raw packet header
     with_span "diode_s2_parse_header", [] do
@@ -24,7 +26,7 @@ defmodule DataDiode.S2.Decapsulator do
         {:error, reason} ->
           record_exception(%RuntimeError{message: to_string(reason)}) # Record exception in the span
           Logger.error("S2: Failed to parse header: #{reason}")
-          :error
+          {:error, reason}
       end
     end
   end
@@ -66,7 +68,7 @@ defmodule DataDiode.S2.Decapsulator do
     # Create a nested span to measure the latency of the "secure write" step
     with_span "diode_s2_secure_write", [] do
       # Simulate writing data to a file on the secure side
-      file_name = "data_#{System.os_time()}_#{src_port}.dat"
+      file_name = generate_filename(src_port)
 
       # Add relevant attributes to the span
       set_attributes(%{
@@ -82,5 +84,11 @@ defmodule DataDiode.S2.Decapsulator do
     # The span ends here.
 
     :ok
+  end
+
+  defp generate_filename(port) do
+    # OT Hardening: Add unique integer to ensure no collisions even if clock jumps back
+    unique = System.unique_integer([:positive, :monotonic])
+    "data_#{:os.system_time(:millisecond)}_#{unique}_#{port}.dat"
   end
 end

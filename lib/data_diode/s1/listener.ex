@@ -8,12 +8,19 @@ defmodule DataDiode.S1.Listener do
   @default_listen_port 8080
 
   @doc "Starts the TCP Listener GenServer."
-  # The final correct function signature for the zero-arity call
-  def start_link(), do: GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
+  @spec start_link(Keyword.t()) :: {:ok, pid()} | {:error, term()}
+  def start_link(opts \\ []),
+    do: GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
 
   # --------------------------------------------------------------------------
   # GenServer Callbacks
   # --------------------------------------------------------------------------
+
+  @doc "Returns the port the listener is bound to."
+  @spec port() :: :inet.port_number() | nil
+  def port() do
+    GenServer.call(__MODULE__, :get_port)
+  end
 
   @impl true
   def init(:ok) do
@@ -41,30 +48,54 @@ defmodule DataDiode.S1.Listener do
         {:stop, reason}
     end
   end
+  @impl true
+  def handle_call(:get_port, _from, listen_socket) do
+    case :inet.port(listen_socket) do
+      {:ok, port} -> {:reply, port, listen_socket}
+      _ -> {:reply, nil, listen_socket}
+    end
+  end
 
   @impl true
   def handle_info(:accept_loop, listen_socket) do
-    case :gen_tcp.accept(listen_socket) do
+    # Use a timeout to allow the GenServer to process other messages (like sys.get_state)
+    case :gen_tcp.accept(listen_socket, 200) do
       {:ok, client_socket} ->
-        # Create a span to trace the acceptance and delegation process
-        with_span "diode_s1_connection_accepted", [] do
-          Logger.info("S1: New connection accepted.")
-          set_attributes(%{
-            "diode.service" => "S1",
-            "diode.protocol" => "tcp",
-            "diode.event" => "connection_accepted"
-          })
-          # Delegate the client socket to the TCP Handler process
-          # Link the handler to the listener so crashes are propagated and logged.
-          {:ok, tcp_handler_pid} = DataDiode.S1.TCPHandler.start_link(client_socket)
-          :gen_tcp.controlling_process(client_socket, tcp_handler_pid)
+        Logger.info("S1: New connection accepted.")
+        case DataDiode.S1.HandlerSupervisor.start_handler(client_socket) do
+          {:ok, pid} ->
+            case :gen_tcp.controlling_process(client_socket, pid) do
+              :ok ->
+                send(pid, :activate)
+              {:error, reason} ->
+                Logger.error("S1: Failed to transfer socket ownership: #{inspect(reason)}")
+                :gen_tcp.close(client_socket)
+            end
+          _ ->
+            :gen_tcp.close(client_socket)
         end
-        # Continue the loop to accept the next connection
-        Process.send(self(), :accept_loop, [])
+        send(self(), :accept_loop)
+        {:noreply, listen_socket}
+
+      {:error, :timeout} ->
+        send(self(), :accept_loop)
+        {:noreply, listen_socket}
+
+      {:error, reason} when reason in [:closed, :ebadf, :enotsock] ->
+        Logger.error("S1: Listener socket fatal error: #{inspect(reason)}. Terminating for restart.")
+        {:stop, reason, listen_socket}
+
       {:error, reason} ->
         Logger.warning("S1: TCP accept error: #{inspect(reason)}. Continuing loop.")
-        Process.send(self(), :accept_loop, [])
+        send(self(), :accept_loop)
+        {:noreply, listen_socket}
     end
+  end
+
+  # Catch-all for unexpected messages (e.g. late tcp_closed from a handed-over socket)
+  @impl true
+  def handle_info(msg, listen_socket) do
+    Logger.debug("S1: Listener received unexpected message: #{inspect(msg)}")
     {:noreply, listen_socket}
   end
 
@@ -80,36 +111,34 @@ defmodule DataDiode.S1.Listener do
   # --------------------------------------------------------------------------
 
   @doc false
-  # Helper to resolve and validate the listen port from environment variables.
-  defp resolve_listen_port() do
-    case System.get_env("LISTEN_PORT") do
-      nil ->
-        # Default port
-        {:ok, @default_listen_port}
-
-      port_str ->
-        # Safely try to parse the string to an integer
-        case Integer.parse(port_str) do
-          # Check that it's a valid integer and greater than 0
-          {port, ""} when is_integer(port) and port > 0 ->
-            {:ok, port}
-
-          _ ->
-            # Return an error tuple specific to this failure for the 'with' block
-            {:error, {:invalid_port, port_str}}
-        end
-    end
+  # Helper to resolve and validate the listen port from application config.
+  def resolve_listen_port() do
+    port = Application.get_env(:data_diode, :s1_port, @default_listen_port)
+    {:ok, port}
   end
 
   @doc false
   # Helper to define socket options
-  defp listen_options() do
-    [
-      # Required for IPv4 resolution (Crucial fix from earlier)
+  def listen_options() do
+    opts = [
+      :binary,
       :inet,
       # Allows quick restart on the same port
-      {:reuseaddr, true}
+      {:reuseaddr, true},
+      # Passive mode ensures we don't get flooded before handover
+      {:active, false}
       # All other options are usually configured *after* the socket is accepted.
     ]
+
+    case Application.get_env(:data_diode, :s1_ip) do
+      nil -> opts
+      ip_str ->
+        case :inet.parse_address(String.to_charlist(ip_str)) do
+          {:ok, ip_tuple} -> [{:ip, ip_tuple} | opts]
+          {:error, _} -> 
+            Logger.warning("S1: Invalid LISTEN_IP #{ip_str}, falling back to all interfaces.")
+            opts
+        end
+    end
   end
 end

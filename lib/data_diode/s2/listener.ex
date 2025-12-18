@@ -9,8 +9,9 @@ defmodule DataDiode.S2.Listener do
   @default_listen_port 42001
 
   @doc "Starts the Service 2 UDP Listener GenServer."
-  # 🚨 FIX: Add the missing start_link/0 function required by the supervisor.
-  def start_link(), do: GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
+  @spec start_link(Keyword.t()) :: {:ok, pid()} | {:error, term()}
+  def start_link(opts \\ []),
+    do: GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
 
   # --------------------------------------------------------------------------
   # GenServer Callbacks
@@ -55,12 +56,35 @@ defmodule DataDiode.S2.Listener do
         "diode.packet_size" => byte_size(packet)
       })
 
-      # Delegate the packet processing (trace context automatically continues)
-      DataDiode.S2.Decapsulator.process_packet(packet)
+      # Delegate the packet processing to a Task under the supervisor
+      # This ensures the UDP listener isn't blocked by processing logic.
+      # We resolve the decapsulator module dynamically to allow mocking in tests.
+      Task.Supervisor.start_child(DataDiode.S2.TaskSupervisor, fn ->
+        decapsulator().process_packet(packet)
+      end)
     end
     # The span ends here implicitly when with_span returns.
 
     {:noreply, listen_socket}
+  end
+
+  @impl true
+  def handle_info({:udp_error, _socket, reason}, socket) do
+    Logger.error("S2: UDP socket error: #{inspect(reason)}. Terminating.")
+    {:stop, reason, socket}
+  end
+
+  @impl true
+  def handle_info(msg, socket) do
+    Logger.warning("S2: Received unexpected message: #{inspect(msg)}")
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:udp_passive, _socket}, socket) do
+    # Re-enable active mode if we were using active: N
+    :inet.setopts(socket, [active: :once])
+    {:noreply, socket}
   end
 
   @impl true
@@ -81,37 +105,37 @@ defmodule DataDiode.S2.Listener do
   # --------------------------------------------------------------------------
 
   @doc false
-  # Helper to resolve and validate the listen port from environment variables.
-  defp resolve_listen_port() do
-    case System.get_env("LISTEN_PORT_S2") do
-      nil ->
-        # Default port
-        {:ok, @default_listen_port}
+  # Helper to resolve the decapsulator module (allows mocking)
+  defp decapsulator do
+    Application.get_env(:data_diode, :decapsulator, DataDiode.S2.Decapsulator)
+  end
 
-      port_str ->
-        # Safely try to parse the string to an integer
-        case Integer.parse(port_str) do
-          # Check that it's a valid integer and greater than 0
-          {port, ""} when is_integer(port) and port > 0 ->
-            {:ok, port}
-
-          _ ->
-            # Return an error tuple specific to this failure for the 'with' block
-            {:error, {:invalid_port, port_str}}
-        end
-    end
+  @doc false
+  # Helper to resolve and validate the listen port from application config.
+  def resolve_listen_port() do
+    port = Application.get_env(:data_diode, :s2_port, @default_listen_port)
+    {:ok, port}
   end
 
   @doc false
   # Helper to define socket options
-  defp udp_options() do
-    [
+  def udp_options() do
+    opts = [
       :binary,
       # Set socket to actively receive messages
       {:active, true},
-      {:reuseaddr, true},
-      # Listen on all interfaces
-      {:ip, {0, 0, 0, 0}}
+      {:reuseaddr, true}
     ]
+
+    case Application.get_env(:data_diode, :s2_ip) do
+      nil -> [{:ip, {0, 0, 0, 0}} | opts]
+      ip_str ->
+        case :inet.parse_address(String.to_charlist(ip_str)) do
+          {:ok, ip_tuple} -> [{:ip, ip_tuple} | opts]
+          {:error, _} ->
+            Logger.warning("S2: Invalid LISTEN_IP_S2 #{ip_str}, falling back to all interfaces.")
+            [{:ip, {0, 0, 0, 0}} | opts]
+        end
+    end
   end
 end

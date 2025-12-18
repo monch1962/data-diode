@@ -69,126 +69,93 @@ Install dependencies:
 
 ## ⚙️ Configuration
 
-The application uses environment variables for configuration.
+The application is configured via environment variables. For OT deployments (e.g., Raspberry Pi), explicit interface binding is recommended.
 
-| Variable | Service | Purpose | Default | Example |
-| -------- | ------- | ------- | ------- | ------- |
-| LISTEN_PORT | S1 TCP Listener | Port for incoming client TCP connections. | 8080 | 42000 |
-| LISTEN_PORT_S2 | S2 UDP Listener | Port for internal UDP communication from S1. | 42001 | 42001 |
+| Variable | Purpose | Default | Example |
+| -------- | ------- | ------- | ------- |
+| `LISTEN_PORT` | S1 Ingress Port (TCP) | 8080 | 42000 |
+| `LISTEN_IP` | S1 Interface Bind IP | `0.0.0.0` | `192.168.1.10` |
+| `LISTEN_PORT_S2` | S2 Ingress Port (UDP) | 42001 | 42001 |
+| `LISTEN_IP_S2` | S2 Interface Bind IP | `0.0.0.0` | `192.168.1.20` |
 
-### Note on Service 1 Encapsulation
+### OT Hardening Features
+- **SD Card Protection**: Logs are formatted as JSON via `:logger_json` to minimize metadata I/O.
+- **Interface Binding**: Supports binding to specific industrial network interfaces to prevent cross-talk.
+- **Clock Drift Immunity**: Filenames on the secure side (S2) use monotonic unique integers to prevent collisions during sudden NTP jumps.
+- **Resilient Supervision**: The app uses a multi-layered supervisor tree. Service 1 handlers are `:temporary` to prevent supervisor saturation during network flapping.
 
-Service 1 (implemented in ```tcp_handler.ex``` and ```encapsulator.ex``` - which must be implemented to connect the services) is expected to send UDP packets to a specific target (e.g., ```127.0.0.1:LISTEN_PORT_S2```). If this target IP/Port is configurable, ensure you set it in your ```DataDiode.S1.Encapsulator``` module.
+## 🚀 Remote Deployment (Raspberry Pi)
 
-## ▶️ How to Run
+Instructions for technicians deploying in isolated OT networks:
 
-### Development Mode (Debugging/Testing)
+1. **Build the Release**:
+   ```bash
+   MIX_ENV=prod mix release
+   ```
+2. **Transfer to Pi**: Copy the `_build/prod/rel/data_diode` directory to the target device.
+3. **Environment Setup**: Create an `.env` file or export variables:
+   ```bash
+   export LISTEN_IP=10.0.0.5
+   export LISTEN_PORT=80
+   export LISTEN_IP_S2=127.0.0.1
+   export LISTEN_PORT_S2=42001
+   ```
+4. **Start Service**:
+   ```bash
+   ./bin/data_diode start
+   ```
 
-Use ```mix run --no-halt``` to keep the application running in your console.
+## 🛠️ Troubleshooting for Remote Technicians
 
-``` # This starts both S1 on 42000 and S2 on 42001 (default)
-LISTEN_PORT=42000 mix run --no-halt
-```
+If the diode stops forwarding data, follow these steps:
 
-### Production Mode (Deployment)
-
-For reliable, production-ready deployment, generate an Elixir release.
-
-#### Build the Release
-
-```MIX_ENV=prod mix release```
-
-This creates a tarball in ```_build/prod/rel/data_diode/releases/```.
-
-#### Deploy and Run
-
-Copy the release to your server, unpack it, and start the daemon:
-
+### 1. Check Connectivity
+Verify the listener is bound to the correct interface:
 ```bash
-### Replace path/to/release with the actual directory
-cd path/to/release/data_diode
-
-# Start the application in the background
-LISTEN_PORT=42000 LISTEN_PORT_S2=42001 ./bin/data_diode start
+ss -tulpn | grep 42000  # S1 (TCP)
+ss -tulpn | grep 42001  # S2 (UDP)
 ```
 
-Use ```./bin/data_diode stop``` to gracefully shut it down.
+### 2. Inspect JSON Logs
+Logs are located in `stdout` or the system journal. Look for `error` level events:
+- `S1: Listener socket fatal error`: Usually means the port is already in use by another process.
+- `S1: Failed to activate handler`: Local network congestion or socket ownership race.
+- `S2: UDP Listener fatal error`: UDP socket closed by the OS/Kernel.
 
-## 🧪 Testing the Flow
+### 3. Supervisor Recovery
+The system automatically attempts to restart crashed components up to 20 times every 5 seconds. If it exceeds this, the entire application will exit. Check for:
+- `reached_max_restart_intensity`: Indicates a persistent hardware/OS failure (e.g., interface down).
 
-Once the application is running:
-
-Open a terminal/client and connect to Service 1 (TCP):
-
+### 4. Direct Node Inspection
+If IEx is included in the release, you can attach to the running node:
 ```bash
-# Connect to S1's configured port (e.g., 42000)
-nc localhost 42000
+./bin/data_diode remote
 ```
+Run `DataDiode.S1.Listener.port()` to confirm the active port.
 
-Type a message and hit enter (e.g., ```SENSOR_READING: 25.4```).
+## 🧪 Testing & Quality Assurance
 
-Check the logs where the Elixir application is running:
+### Test Coverage
+The project maintains a high quality bar for unattended operation.
+- **Current Coverage**: **91.03%**
+- **Robustness Suite**: Includes `test/long_term_robustness_test.exs` which simulates:
+  - Disk-full scenarios.
+  - Network interface flapping.
+  - Large connection churn (Soak testing).
+  - Clock jumps (NTP drift).
 
-* S1 will log that it received the data and forwarded a UDP packet.
-
-* S2 will immediately log that it received, decapsulated, and simulated the secure write:
-
-```txt
-
-[info] S2: Decapsulated packet from 127.0.0.1:45321. Payload size: 21 bytes.
-[debug] S2: Successfully wrote 21 bytes to data_... (Simulated secure write)
+To run verification locally:
+```bash
+mix test --cover
 ```
-
-*Note: The IP/Port logged by S2 will be the temporary source of the TCP client connecting to S1.*
-
-## 📊 Confirming OpenTelemetry Traces
-
-This application is instrumented with OpenTelemetry. To confirm that trace data is being generated and exported, you need to run an OpenTelemetry Collector. The collector will receive the traces from your application and can then process, store, or forward them.
-
-A simple way to test this is to run a collector that prints all received traces to its standard output.
-
-**Steps:**
-
-1. **Start the OpenTelemetry Collector** in a *separate terminal window*.
-
-    ```bash
-    docker run --rm -it -p 4317:4317 -p 4318:4318 -p 8888:8888 -p 55680:55680 otel/opentelemetry-collector-contrib:latest --config=- <<EOF
-    receivers:
-      otlp:
-        protocols:
-          grpc:
-          http:
-    processors:
-      batch:
-    exporters:
-      logging:
-        verbosity: detailed
-    service:
-      pipelines:
-        traces:
-          receivers: [otlp]
-          processors: [batch]
-          exporters: [logging]
-        metrics:
-          receivers: [otlp]
-          processors: [batch]
-          exporters: [logging]
-    EOF
-    ```
-
-    *This command exposes the necessary OTLP ports (4317 for gRPC, 4318 for HTTP) and configures the collector to print all received telemetry data to its standard output.*
-
-2. **Start your Elixir application** (as described in "How to Run" section).
-3. **Send some data** through your application (e.g., using `nc localhost 42000`).
-4. **Observe the terminal where the collector is running.** You should see detailed logs of the traces generated by your Elixir application, confirming that OpenTelemetry data is being exported.
 
 ## 🗃️ Key Files
 
 | Filepath | Description |
 | --- | --- |
-| ```lib/data_diode/application.ex``` | Supervisor: Defines and starts the S1 and S2 listeners. |
-| ```lib/data_diode/s1/listener.ex``` | Service 1: TCP Listener. Accepts client connections and starts a handler for each.|
-| ```lib/data_diode/s1/tcp_handler.ex``` | Service 1: Handles an individual TCP stream, extracts metadata, and calls the Encapsulator. |
-| ```lib/data_diode/s2/listener.ex``` | Service 2: UDP Listener. Receives packets from S1 and passes them to the Decapsulator.|
-| ```lib/data_diode/s2/decapsulator.ex``` | Service 2: Core security logic. Parses the custom header and simulates the final secure write. |
-| ```mix.exs``` | Project configuration, dependencies, and release definition. |
+| `lib/data_diode/application.ex` | Main Supervision Tree. |
+| `lib/data_diode/s1/listener.ex` | S1 TCP Ingress (Passive mode for handover). |
+| `lib/data_diode/s1/tcp_handler.ex` | S1 Stream Processing (Deferred activation). |
+| `lib/data_diode/s2/listener.ex` | S2 UDP Ingress (Async Task spawning). |
+| `lib/data_diode/s2/decapsulator.ex`| S2 Core logic & Secure Storage (Clock-drift safe). |
+| `config/runtime.exs` | Environment variable binding. |
