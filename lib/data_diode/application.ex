@@ -6,6 +6,13 @@ defmodule DataDiode.Application do
   # Define the children processes the supervisor must start and monitor.
   children = [
 
+    # 1. Operational Metrics Agent
+    %{
+      id: DataDiode.Metrics,
+      start: {DataDiode.Metrics, :start_link, [[]]},
+      type: :worker
+    },
+    {DataDiode.SystemMonitor, []},
     # 2. Service 1: TCP Listener (S1)
     %{
       id: DataDiode.S1.Listener,
@@ -26,6 +33,15 @@ defmodule DataDiode.Application do
       start: {DataDiode.S1.Encapsulator, :start_link, []},
       type: :worker
     },
+
+    # 4. Service 1: Heartbeat Generator
+    {DataDiode.S1.Heartbeat, []},
+
+    # 5. Service 2: Heartbeat Monitor
+    {DataDiode.S2.HeartbeatMonitor, []},
+
+    # 6. Autonomous Maintenance
+    {DataDiode.DiskCleaner, []},
 
     # 3. Service 2: UDP Listener (S2) - RESTORED
     %{

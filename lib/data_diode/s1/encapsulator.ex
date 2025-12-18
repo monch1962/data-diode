@@ -64,12 +64,15 @@ defmodule DataDiode.S1.Encapsulator do
         # 4. Send using existing socket
         case :gen_udp.send(state.socket, @s2_udp_target, state.dest_port, udp_packet) do
           :ok ->
+            DataDiode.Metrics.inc_packets()
             :ok # Success
           {:error, reason} ->
+            DataDiode.Metrics.inc_errors()
             Logger.warning("S1 Encapsulator: Failed to send packet: #{inspect(reason)}")
         end
 
       {:error, :invalid_ip} ->
+        DataDiode.Metrics.inc_errors()
         Logger.warning("S1 Encapsulator: Invalid IP #{src_ip}, dropping packet.")
     end
 

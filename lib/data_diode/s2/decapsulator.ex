@@ -21,9 +21,16 @@ defmodule DataDiode.S2.Decapsulator do
             "diode.source_port" => src_port
           })
           Logger.info("S2: Decapsulated packet from #{src_ip}:#{src_port}. Payload size: #{byte_size(payload)} bytes.")
-          write_to_secure_storage(src_ip, src_port, payload)
+          
+          if payload == "HEARTBEAT" do
+            DataDiode.S2.HeartbeatMonitor.heartbeat_received()
+          else
+            write_to_secure_storage(src_ip, src_port, payload)
+          end
+          :ok
 
         {:error, reason} ->
+          DataDiode.Metrics.inc_errors()
           record_exception(%RuntimeError{message: to_string(reason)}) # Record exception in the span
           Logger.error("S2: Failed to parse header: #{reason}")
           {:error, reason}

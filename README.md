@@ -105,7 +105,7 @@ Instructions for technicians deploying in isolated OT networks:
    ./bin/data_diode start
    ```
 
-## � Power Recovery & Persistence
+## 🔋 Power Recovery & Persistence
 
 In remote deployments, power cuts are a common occurrence. To ensure the Data Diode resumes operation automatically after power is restored to the Raspberry Pi:
 
@@ -138,7 +138,32 @@ The application is designed to be "cold-start" resilient:
 ### 3. SD Card Protection
 To prevent filesystem corruption during power loss, it is highly recommended to use the Raspberry Pi's "Overlay File System" (via `raspi-config`) to make the system partition read-only.
 
-## �🛠️ Troubleshooting for Remote Technicians
+## 📡 Advanced Remote Support & Self-Healing
+
+For mission-critical deployments where on-site access is limited, the application includes autonomous health management:
+
+### 1. JSON Health Pulses (Telemetry)
+The `DataDiode.SystemMonitor` emits a structured JSON log every 60 seconds (look for `HEALTH_PULSE` in logs). This includes:
+- **Uptime**: Total seconds since service start.
+- **Resource Usage**: CPU Temperature, Memory (MB), and Disk Free %.
+- **Throughput**: Total packets forwarded and error counts.
+*Tip: Remote monitoring platforms can alert on `cpu_temp > 80` or `disk_free_percent < 10`.*
+
+### 2. End-to-End Channel Heartbeat
+Service 1 automatically generates a "HEARTBEAT" packet every 5 minutes.
+- **S1.Heartbeat**: Simulates a packet through the entire code path.
+- **S2.HeartbeatMonitor**: Logs a `CRITICAL FAILURE` if a heartbeat is missed for more than 6 minutes.
+*This verifies both services and the physical diode hardware.*
+
+### 3. Autonomous Disk Maintenance
+The `DataDiode.DiskCleaner` monitors storage hourly. If disk space falls below **15%**, it triggers an autonomous cleanup to prevent service interruption.
+
+### 4. Hardware Watchdog (Pi Integration)
+To recover from hard OS/VM hangs, enable the Raspberry Pi hardware watchdog:
+1. Load the module: `sudo modprobe bcm2835_wdt`
+2. Add `heart=on` to your environment variables or configure the `heart` daemon to pulse the watchdog.
+
+## 🛠️ Troubleshooting for Remote Technicians
 
 If the diode stops forwarding data, follow these steps:
 
@@ -192,3 +217,5 @@ mix test --cover
 | `lib/data_diode/s2/listener.ex` | S2 UDP Ingress (Async Task spawning). |
 | `lib/data_diode/s2/decapsulator.ex`| S2 Core logic & Secure Storage (Clock-drift safe). |
 | `config/runtime.exs` | Environment variable binding. |
+| `OPERATIONS.md` | SOC Monitoring (SLIs, SLOs, SLAs). |
+| `TROUBLESHOOTING.md` | Field Engineering Field Guide. |
