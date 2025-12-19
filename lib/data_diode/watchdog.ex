@@ -8,6 +8,7 @@ defmodule DataDiode.Watchdog do
 
   @default_path "/tmp/watchdog_pulse"
   @default_interval 10_000
+  @default_max_temp 80.0
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
@@ -22,10 +23,10 @@ defmodule DataDiode.Watchdog do
 
   @impl true
   def handle_info(:pulse, state) do
-    if healthy?() do
+    if healthy?() and thermal_safe?() do
       pulse(state.path)
     else
-      Logger.warning("Watchdog: System unhealthy, withholding pulse.")
+      Logger.warning("Watchdog: System unhealthy or thermal limit exceeded, withholding pulse.")
     end
 
     schedule_pulse()
@@ -63,6 +64,26 @@ defmodule DataDiode.Watchdog do
   defp schedule_pulse do
     interval = Application.get_env(:data_diode, :watchdog_interval, @default_interval)
     Process.send_after(self(), :pulse, interval)
+  end
+
+  defp thermal_safe? do
+    temp = DataDiode.SystemMonitor.get_cpu_temp()
+    
+    # If temp is "unknown", fail safe? Or assume safe?
+    # In OT, we generally fail safe (stop pulse) if we can't read sensors.
+    # But for now, let's treat "unknown" as safe to avoid accidental reboots on systems without sensors.
+    case temp do
+      "unknown" -> true
+      t when is_number(t) -> 
+        max = Application.get_env(:data_diode, :watchdog_max_temp, @default_max_temp)
+        if t > max do
+          Logger.warning("Watchdog: Thermal Cutoff! Current: #{t}, Max: #{max}")
+          false
+        else
+          true
+        end
+      _ -> true
+    end
   end
 
   defp resolve_path do

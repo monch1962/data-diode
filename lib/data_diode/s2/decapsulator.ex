@@ -26,7 +26,12 @@ defmodule DataDiode.S2.Decapsulator do
             DataDiode.S2.HeartbeatMonitor.heartbeat_received()
             :ok
           else
-            write_to_secure_storage(src_ip, src_port, payload)
+            case write_to_secure_storage(src_ip, src_port, payload) do
+              :ok -> :ok
+              {:error, reason} ->
+                DataDiode.Metrics.inc_errors()
+                {:error, reason}
+            end
           end
 
         {:error, reason} ->
