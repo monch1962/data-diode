@@ -59,12 +59,16 @@ export ALLOWED_PROTOCOLS="MODBUS,MQTT"
 ```
 
 ### Supported Protocols
-| Key | Protocol | Description |
-| :--- | :--- | :--- |
-| **MODBUS** | Modbus TCP | Industry standard for PLC communication. Checks for Protocol ID 0x0000. |
-| **DNP3** | DNP3 | Standard for utilities/substations. Checks for start bytes `0x05 0x64`. |
-| **MQTT** | MQTT | IoT messaging protocol. Validates common Control Packet types (1-14). |
-| **ANY** | All Protocols | (Default) Allows any valid packet size through the diode. |
+| Key | Protocol | Primary Transport | Standard Port | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **MODBUS** | Modbus TCP | TCP | 502 | Industry standard for PLC communication. |
+| **DNP3** | DNP3 | TCP/UDP | 20000 | Standard for utilities and substations. |
+| **MQTT** | MQTT | TCP | 1883 / 8883 | IoT messaging protocol (DPI checks Control Types). |
+| **SNMP** | SNMP | UDP | 161 / 162 | Network management (Checks ASN.1 BER Sequence). |
+| **ANY** | All Protocols | - | - | (Default) Allows any valid packet through. |
+
+> [!NOTE]
+> **Transport Ingress Note**: The current `S1.Listener` is configured for **TCP Ingress**. While the DPI logic supports UDP-based protocols (SNMP, DNP3-UDP), they would require the deployment of a corresponding UDP Ingress listener at Service 1.
 
 *Note: Packets that do not match the configured signatures are dropped at the ingress (S1) and recorded as errors in the metrics.*
 
@@ -138,9 +142,10 @@ Instructions for technicians deploying in isolated OT networks:
 3. **Environment Setup**: Create an `.env` file or export variables:
    ```bash
    export LISTEN_IP=10.0.0.5
-   export LISTEN_PORT=80
+   export LISTEN_PORT_TCP=502     # Map incoming Modbus to S1 (TCP)
+   export LISTEN_PORT_UDP=161     # Map incoming SNMP to S1 (UDP)
    export LISTEN_IP_S2=127.0.0.1
-   export LISTEN_PORT_S2=42001
+   export LISTEN_PORT_S2=42001    # Internal diode link (UDP)
    ```
 4. **Start Service**:
    ```bash

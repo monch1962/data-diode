@@ -1,5 +1,3 @@
-Mox.defmock(DataDiode.S2.DecapsulatorMock, for: DataDiode.S2.Decapsulator)
-
 defmodule DataDiode.S2.ListenerTest do
   use ExUnit.Case, async: false
   alias DataDiode.S2.Listener
@@ -12,12 +10,13 @@ defmodule DataDiode.S2.ListenerTest do
     Application.delete_env(:data_diode, :s2_ip)
 
     :ok = set_mox_global()
-    
+
     on_exit(fn ->
       Application.delete_env(:data_diode, :decapsulator)
       Application.delete_env(:data_diode, :s2_port)
       Application.delete_env(:data_diode, :s2_ip)
     end)
+
     :ok
   end
 
@@ -58,56 +57,57 @@ defmodule DataDiode.S2.ListenerTest do
   test "saturation test: handles many rapid UDP packets" do
     # Use real Decapsulator to avoid Mox multi-process expectation hell in stress test
     Application.put_env(:data_diode, :decapsulator, DataDiode.S2.Decapsulator)
-    
+
     # Start a real listener
     Application.put_env(:data_diode, :s2_port, 0)
     {:ok, pid} = Listener.start_link(name: :s2_saturation_test_unique)
-    
+
     # Get port
     socket = :sys.get_state(pid)
     {:ok, port} = :inet.port(socket)
-    
+
     # Send 100 packets rapidly
     {:ok, sender} = :gen_udp.open(0, [])
     packet = <<127, 0, 0, 1, 0, 80, "payload">>
-    
+
     Enum.each(1..100, fn _ ->
       :gen_udp.send(sender, ~c"127.0.0.1", port, packet)
     end)
-    
+
     # Verify app doesn't crash
     Process.sleep(100)
     assert Process.alive?(pid)
-    
+
     :gen_udp.close(sender)
     GenServer.stop(pid)
     Application.delete_env(:data_diode, :decapsulator)
   end
 
   test "handle_info :udp_closed stops the process" do
-    assert {:stop, :udp_closed, :dummy_socket} == Listener.handle_info({:udp_closed, :dummy_socket}, :dummy_state)
+    assert {:stop, :udp_closed, :dummy_socket} ==
+             Listener.handle_info({:udp_closed, :dummy_socket}, :dummy_state)
   end
 
   test "integration: UDP listener accepts packet and processes it" do
     # Use real decapsulator for integration
     Application.put_env(:data_diode, :decapsulator, DataDiode.S2.Decapsulator)
-    
+
     # Start a real listener on port 0
     {:ok, pid} = Listener.start_link(name: :s2_test_listener)
-    
+
     # Get the port
     socket = :sys.get_state(pid)
     {:ok, port} = :inet.port(socket)
-    
+
     # Send a packet
     {:ok, sender} = :gen_udp.open(0)
     packet = <<1, 2, 3, 4, 0, 80, "Hello">>
     :ok = :gen_udp.send(sender, {127, 0, 0, 1}, port, packet)
-    
+
     # Wait for the task to be spawned (no easy way to verify without poll or mock)
     # But we can at least ensure it doesn't crash
     Process.sleep(10)
-    
+
     # Clean up
     :gen_udp.close(sender)
     GenServer.stop(pid)
@@ -121,7 +121,7 @@ defmodule DataDiode.S2.ListenerTest do
 
     # Start a fresh listener on port 0
     {:ok, pid} = Listener.start_link(name: :s2_fresh_mock_test)
-    
+
     # Get port
     socket = :sys.get_state(pid)
     {:ok, port} = :inet.port(socket)

@@ -57,6 +57,14 @@ Technicians can lock the diode to specific industrial protocols via the `ALLOWED
 - **Multi-Protocol Mode**: `ALLOWED_PROTOCOLS="DNP3,MQTT"` (Allows both DNP3 and MQTT).
 - **Open Mode**: `ALLOWED_PROTOCOLS="ANY"` (Allows all traffic with valid diode headers).
 
+### Protocol Transport Matrix
+| Protocol | Transport | Port |
+| :--- | :--- | :--- |
+| **Modbus TCP** | TCP | 502 |
+| **DNP3** | TCP/UDP | 20000 |
+| **MQTT** | TCP | 1883 / 8883 |
+| **SNMP** | UDP | 161 / 162 |
+
 ### SOC Monitoring of Protocol Violations
 When a protocol violation occurs (e.g., someone attempts to send HTTP through a Modbus-only diode):
 1. The packet is **dropped immediately** on the S1 side.

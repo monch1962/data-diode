@@ -46,6 +46,15 @@ defmodule DataDiode.ProtocolDefinitionsTest do
     refute ProtocolDefinitions.matches?(:mqtt, <<>>)
   end
 
+  test "matches? :snmp" do
+    # Valid SNMP (SEQUENCE + INTEGER)
+    assert ProtocolDefinitions.matches?(:snmp, <<0x30, 0x2C, 0x02, 0x01, 0x01>>)
+
+    # Invalid
+    refute ProtocolDefinitions.matches?(:snmp, <<0x31, 1, 2>>)
+    refute ProtocolDefinitions.matches?(:snmp, <<0x30, 0x2C, 0x03, 1, 2>>)
+  end
+
   test "matches? unknown atom" do
     refute ProtocolDefinitions.matches?(:unknown, "payload")
   end

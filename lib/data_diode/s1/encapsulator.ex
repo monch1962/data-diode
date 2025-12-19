@@ -34,6 +34,11 @@ defmodule DataDiode.S1.Encapsulator do
     GenServer.cast(target, {:send, src_ip, src_port, payload})
   end
 
+  @doc "Updates the destination port (S2) dynamically."
+  def set_dest_port(port) do
+    GenServer.cast(@name, {:set_dest_port, port})
+  end
+
   @doc "Updates the rate limit (packets per second) dynamically."
   def set_rate_limit(limit) do
     GenServer.cast(@name, {:set_limit, limit})
@@ -128,6 +133,11 @@ defmodule DataDiode.S1.Encapsulator do
   def handle_cast({:set_limit, limit}, state) do
     {:noreply,
      %{state | limit: limit, tokens: limit, last_refill: System.monotonic_time(:millisecond)}}
+  end
+
+  @impl true
+  def handle_cast({:set_dest_port, port}, state) do
+    {:noreply, %{state | dest_port: port}}
   end
 
   @impl true
