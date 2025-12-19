@@ -221,3 +221,4 @@ mix test --cover
 | `TROUBLESHOOTING.md` | Field Engineering Field Guide. |
 | `PACKAGING.md` | Raspberry Pi Packaging Options (Nerves, .deb). |
 | `HARDWARE.md` | Industrial Hardware Recommendations. |
+| `PERFORMANCE.md` | Performance Benchmarking & Load Testing. |
