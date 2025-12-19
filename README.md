@@ -78,7 +78,9 @@ The application is configured via environment variables. For OT deployments (e.g
 | `LISTEN_PORT_S2` | S2 Ingress Port (UDP) | 42001 | 42001 |
 | `LISTEN_IP_S2` | S2 Interface Bind IP | `0.0.0.0` | `192.168.1.20` |
 
-### OT Hardening Features
+### OT Hardening & Stability
+- **Race Condition Audit**: Underwent a comprehensive audit to eliminate concurrent race conditions and timing-based flakiness.
+- **Task Exhaustion Safety**: S2 Listener now gracefully handles `TaskSupervisor` saturation with explicit error logging and metric increments.
 - **SD Card Protection**: Logs are formatted as JSON via `:logger_json` to minimize metadata I/O.
 - **Interface Binding**: Supports binding to specific industrial network interfaces to prevent cross-talk.
 - **Clock Drift Immunity**: Filenames on the secure side (S2) use monotonic unique integers to prevent collisions during sudden NTP jumps.
@@ -191,11 +193,22 @@ If IEx is included in the release, you can attach to the running node:
 ```
 Run `DataDiode.S1.Listener.port()` to confirm the active port.
 
+## ⚡ Performance Benchmarking
+To establish operational baselines and verify scaling on industrial hardware, the project includes an automated load testing suite.
+
+### Automated Load Test
+The turn-key solution automates the "start -> test -> results -> stop" lifecycle:
+```bash
+# Usage: ./bin/run_load_test.sh <concurrency> <payload_bytes> <duration_ms>
+./bin/run_load_test.sh 10 1024 10000
+```
+Detailed results, including packets per second and bandwidth throughput, are automatically captured into timestamped log files. See [`PERFORMANCE.md`](./PERFORMANCE.md) for deeper analysis.
+
 ## 🧪 Testing & Quality Assurance
 
 ### Test Coverage
-The project maintains a high quality bar for unattended operation.
-- **Current Coverage**: **91.03%**
+The project maintains a high quality bar for unattended operation through an exhaustive test suite.
+- **Current Coverage**: **~90%**
 - **Robustness Suite**: Includes `test/long_term_robustness_test.exs` which simulates:
   - Disk-full scenarios.
   - Network interface flapping.
@@ -217,6 +230,8 @@ mix test --cover
 | `lib/data_diode/s2/listener.ex` | S2 UDP Ingress (Async Task spawning). |
 | `lib/data_diode/s2/decapsulator.ex`| S2 Core logic & Secure Storage (Clock-drift safe). |
 | `config/runtime.exs` | Environment variable binding. |
+| `bin/automate_load_test.exs` | Automated load test script (lifecycle managed). |
+| `bin/run_load_test.sh` | Shell wrapper for automated performance testing. |
 | `OPERATIONS.md` | SOC Monitoring (SLIs, SLOs, SLAs). |
 | `TROUBLESHOOTING.md` | Field Engineering Field Guide. |
 | `PACKAGING.md` | Raspberry Pi Packaging Options (Nerves, .deb). |
