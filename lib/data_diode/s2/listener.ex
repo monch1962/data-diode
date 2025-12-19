@@ -6,6 +6,7 @@ defmodule DataDiode.S2.Listener do
   require Logger
 
   alias DataDiode.S2.Decapsulator
+  @default_listen_port 42001
 
   @spec start_link(keyword()) :: :ignore | {:error, any()} | {:ok, pid()}
   def start_link(opts \\ []) do
@@ -45,7 +46,7 @@ defmodule DataDiode.S2.Listener do
   def handle_info({:udp, _socket, _ip, _port, data}, socket) do
     # Heavy processing offloaded to Task to keep listener responsive
     Task.Supervisor.start_child(DataDiode.S2.TaskSupervisor, fn ->
-      Decapsulator.process_packet(data)
+      decapsulator().process_packet(data)
     end)
 
     # Re-arm socket for next packet
@@ -92,5 +93,9 @@ defmodule DataDiode.S2.Listener do
 
   def parse_ip(ip_str) do
     :inet.parse_address(String.to_charlist(ip_str))
+  end
+
+  defp decapsulator do
+    Application.get_env(:data_diode, :decapsulator, DataDiode.S2.Decapsulator)
   end
 end

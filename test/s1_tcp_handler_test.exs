@@ -62,8 +62,10 @@ defmodule DataDiode.S1.TCPHandlerTest do
     
     # Clean up
     :gen_tcp.close(client_socket)
-    # Wait for the async cast to be processed
-    Process.sleep(50)
+    
+    # We can try to verify synchronously since it's a cast but Mox might need a tiny yield
+    # or better yet, use a helper that retries verify if needed, or just sleep very little
+    Process.sleep(10)
     verify!()
     :gen_tcp.close(server_socket)
     :gen_tcp.close(listen_socket)

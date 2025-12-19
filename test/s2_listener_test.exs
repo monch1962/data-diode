@@ -89,8 +89,9 @@ defmodule DataDiode.S2.ListenerTest do
   end
 
   test "integration: UDP listener accepts packet and processes it" do
-    # Use real decapsulator for integration to avoid Mox multi-process issues
+    # Use real decapsulator for integration
     Application.put_env(:data_diode, :decapsulator, DataDiode.S2.Decapsulator)
+    
     # Start a real listener on port 0
     {:ok, pid} = Listener.start_link(name: :s2_test_listener)
     
@@ -100,14 +101,12 @@ defmodule DataDiode.S2.ListenerTest do
     
     # Send a packet
     {:ok, sender} = :gen_udp.open(0)
-    packet = <<1, 2, 3, 4, 200, 10, "Hello">>
+    packet = <<1, 2, 3, 4, 0, 80, "Hello">>
     :ok = :gen_udp.send(sender, {127, 0, 0, 1}, port, packet)
     
-    # Give it a moment
-    Process.sleep(50)
-    
-    # We can't easily verify the processing without mocking decapsulator,
-    # but the coverage will record that handle_info was hit.
+    # Wait for the task to be spawned (no easy way to verify without poll or mock)
+    # But we can at least ensure it doesn't crash
+    Process.sleep(10)
     
     # Clean up
     :gen_udp.close(sender)
@@ -115,40 +114,30 @@ defmodule DataDiode.S2.ListenerTest do
   end
 
   test "UDP listener receives packet and delegates to Decapsulator" do
-    # 1. Setup Mock Expectation
-    # We expect DecapsulatorMock.process_packet/1 to be called exactly once
-    # with any binary data, and it should return :ok.
-    expect(DataDiode.S2.DecapsulatorMock, :process_packet, fn packet -> # Use the fully qualified name here
+    expect(DataDiode.S2.DecapsulatorMock, :process_packet, fn packet ->
       assert is_binary(packet)
-      assert byte_size(packet) > 6 # Ensure header + payload exists
       :ok
     end)
 
-    # 2. Start the Listener (already started by the mix test process)
-    listener_pid = Process.whereis(Listener)
-    assert is_pid(listener_pid)
+    # Start a fresh listener on port 0
+    {:ok, pid} = Listener.start_link(name: :s2_fresh_mock_test)
+    
+    # Get port
+    socket = :sys.get_state(pid)
+    {:ok, port} = :inet.port(socket)
 
-    # 3. Send a simulated UDP packet to the listener's default port (42001)
-    # Simulating the raw binary data sent by S1.
-    # IP (127.0.0.1) = <<127, 0, 0, 1>>
-    # Port (1234) = <<0, 1234::16>>
-    # Payload = "test payload"
     ip_header = <<127, 0, 0, 1>>
     port_header = <<1234::size(16)>>
     payload = "test payload"
     packet = ip_header <> port_header <> payload
 
-    # Simulating the UDP send via Erlang prim_inet functions:
-    {:ok, socket} = :gen_udp.open(0)
-    # The default listening port for S2 is 42001
-    :ok = :gen_udp.send(socket, {127, 0, 0, 1}, 42001, packet)
-    :gen_udp.close(socket)
+    {:ok, sender_socket} = :gen_udp.open(0)
+    :ok = :gen_udp.send(sender_socket, {127, 0, 0, 1}, port, packet)
+    :gen_udp.close(sender_socket)
 
-    # 4. Wait for the asynchronous delegation to happen
-    Process.sleep(10)
-
-    # Mox verifies the expectation automatically during the setup cleanup.
-    # assert_called(DataDiode.S2.DecapsulatorMock.process_packet(packet))
-    :ok
+    # Use verify_count instead of sleep if possible, or a very small sleep since it's async
+    Process.sleep(20)
+    verify!()
+    GenServer.stop(pid)
   end
 end

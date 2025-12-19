@@ -43,23 +43,36 @@ defmodule DataDiode.S1.ListenerTest do
     # Start a real listener on port 0
     {:ok, pid} = Listener.start_link(name: :s1_test_listener_integration_unique)
     
-    # Get the actual port (now possible because listener is non-blocking)
+    # Get the actual port
     socket = :sys.get_state(pid)
     {:ok, port} = :inet.port(socket)
     
     # Connect a client
     {:ok, client} = :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false])
     
-    # Give it a moment to process the accept_loop
-    Process.sleep(50)
-    
     # Verify at least one child was started in HandlerSupervisor
-    assert %{active: count} = DynamicSupervisor.count_children(DataDiode.S1.HandlerSupervisor)
-    assert count >= 1
+    # We use a simple retry loop because start_handler is async
+    wait_until(fn ->
+      %{active: count} = DynamicSupervisor.count_children(DataDiode.S1.HandlerSupervisor)
+      count >= 1
+    end)
     
     # Clean up
     :gen_tcp.close(client)
     GenServer.stop(pid)
+  end
+
+  defp wait_until(fun, attempts \\ 10) do
+    if attempts == 0 do
+      flunk("Condition not met after 10 attempts")
+    else
+      if fun.() do
+        :ok
+      else
+        Process.sleep(10)
+        wait_until(fun, attempts - 1)
+      end
+    end
   end
 
   test "recovers from socket closure (flapping interface)" do
