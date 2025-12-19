@@ -45,9 +45,16 @@ defmodule DataDiode.S2.Listener do
   @impl true
   def handle_info({:udp, _socket, _ip, _port, data}, socket) do
     # Heavy processing offloaded to Task to keep listener responsive
-    Task.Supervisor.start_child(DataDiode.S2.TaskSupervisor, fn ->
-      decapsulator().process_packet(data)
-    end)
+    case Task.Supervisor.start_child(DataDiode.S2.TaskSupervisor, fn ->
+           decapsulator().process_packet(data)
+         end) do
+      {:ok, _pid} ->
+        :ok
+
+      {:error, reason} ->
+        DataDiode.Metrics.inc_errors()
+        Logger.error("S2: Failed to spawn processing task: #{inspect(reason)}. Packet dropped.")
+    end
 
     # Re-arm socket for next packet
     :inet.setopts(socket, active: :once)

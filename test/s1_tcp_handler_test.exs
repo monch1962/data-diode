@@ -5,7 +5,7 @@ end
 Mox.defmock(DataDiode.S1.EncapsulatorMock, for: DataDiode.S1.Encapsulator)
 
 defmodule DataDiode.S1.TCPHandlerTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   alias DataDiode.S1.TCPHandler
   import Mox
 
