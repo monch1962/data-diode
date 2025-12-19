@@ -25,11 +25,18 @@ defmodule DataDiode.S1.Encapsulator do
   @spec encapsulate_and_send(String.t(), :inet.port_number(), binary()) :: :ok
   def encapsulate_and_send(src_ip, src_port, payload) do
     # Try to find the process by name, defaulting to @name
-    target = case Process.whereis(@name) do
-      nil -> @name
-      pid -> pid
-    end
+    target =
+      case Process.whereis(@name) do
+        nil -> @name
+        pid -> pid
+      end
+
     GenServer.cast(target, {:send, src_ip, src_port, payload})
+  end
+
+  @doc "Updates the rate limit (packets per second) dynamically."
+  def set_rate_limit(limit) do
+    GenServer.cast(@name, {:set_limit, limit})
   end
 
   # --------------------------------------------------------------------------
@@ -44,14 +51,15 @@ defmodule DataDiode.S1.Encapsulator do
       {:ok, socket} ->
         s2_port = resolve_s2_port()
         limit = resolve_rate_limit()
-        
-        {:ok, %{
-          socket: socket, 
-          dest_port: s2_port, 
-          tokens: limit, 
-          limit: limit, 
-          last_refill: System.monotonic_time(:millisecond)
-        }}
+
+        {:ok,
+         %{
+           socket: socket,
+           dest_port: s2_port,
+           tokens: limit,
+           limit: limit,
+           last_refill: System.monotonic_time(:millisecond)
+         }}
 
       {:error, reason} ->
         Logger.error("S1 Encapsulator: Failed to open UDP socket: #{inspect(reason)}")
@@ -72,9 +80,11 @@ defmodule DataDiode.S1.Encapsulator do
     cond do
       state.tokens <= 0 ->
         DataDiode.Metrics.inc_errors()
+
         if rem(System.unique_integer([:positive]), 100) == 0 do
           Logger.warning("S1 Encapsulator: Rate limit exceeded, dropping packets.")
         end
+
         {:noreply, state}
 
       not protocol_allowed?(payload) ->
@@ -87,7 +97,9 @@ defmodule DataDiode.S1.Encapsulator do
         case ip_to_binary(src_ip) do
           {:ok, ip_binary} ->
             # 3. Construct packet with CRC32 checksum
-            header_payload = <<ip_binary::binary-4, src_port::integer-unsigned-big-16, payload::binary>>
+            header_payload =
+              <<ip_binary::binary-4, src_port::integer-unsigned-big-16, payload::binary>>
+
             checksum = :erlang.crc32(header_payload)
             final_packet = <<header_payload::binary, checksum::integer-unsigned-big-32>>
 
@@ -95,7 +107,9 @@ defmodule DataDiode.S1.Encapsulator do
             case :gen_udp.send(state.socket, @s2_udp_target, state.dest_port, final_packet) do
               :ok ->
                 DataDiode.Metrics.inc_packets()
-                :ok # Success
+                # Success
+                :ok
+
               {:error, reason} ->
                 DataDiode.Metrics.inc_errors()
                 Logger.warning("S1 Encapsulator: Failed to send packet: #{inspect(reason)}")
@@ -108,6 +122,12 @@ defmodule DataDiode.S1.Encapsulator do
 
         {:noreply, %{state | tokens: state.tokens - 1}}
     end
+  end
+
+  @impl true
+  def handle_cast({:set_limit, limit}, state) do
+    {:noreply,
+     %{state | limit: limit, tokens: limit, last_refill: System.monotonic_time(:millisecond)}}
   end
 
   @impl true
@@ -134,10 +154,14 @@ defmodule DataDiode.S1.Encapsulator do
 
   defp resolve_s2_port() do
     port = Application.get_env(:data_diode, :s2_port, @s2_udp_port)
+
     if is_integer(port) and port > 0 and port <= 65535 do
       port
     else
-      Logger.warning("S1 Encapsulator: Invalid S2_PORT #{inspect(port)}, using default #{@s2_udp_port}")
+      Logger.warning(
+        "S1 Encapsulator: Invalid S2_PORT #{inspect(port)}, using default #{@s2_udp_port}"
+      )
+
       @s2_udp_port
     end
   end
@@ -149,7 +173,7 @@ defmodule DataDiode.S1.Encapsulator do
   defp refill_tokens(state) do
     now = System.monotonic_time(:millisecond)
     elapsed = now - state.last_refill
-    
+
     if elapsed >= 1000 do
       %{state | tokens: state.limit, last_refill: now}
     else
@@ -158,13 +182,27 @@ defmodule DataDiode.S1.Encapsulator do
   end
 
   defp protocol_allowed?(payload) do
-    # Basic DPI / Protocol Guarding
-    # Allow-list via environment variable prefix (hex or string)
+    # DPI / Protocol Guarding
+    # Allow-list via environment variable
+    # If list is empty or nil or contains :any, we allow all.
     case Application.get_env(:data_diode, :protocol_allow_list) do
-      nil -> true # Default: allow all
+      nil ->
+        true
+
+      [] ->
+        true
+
       list when is_list(list) ->
-        Enum.any?(list, fn prefix -> String.starts_with?(payload, prefix) end)
-      _ -> true
+        if :any in list do
+          true
+        else
+          Enum.any?(list, fn proto_atom ->
+            DataDiode.ProtocolDefinitions.matches?(proto_atom, payload)
+          end)
+        end
+
+      _ ->
+        true
     end
   end
 end

@@ -47,6 +47,26 @@ The function of Service 2 is to safely receive data from the unsecured side, ver
 * **Decapsulation:** Parses the custom 6-byte header to recover the original source IP and Port.
 
 * **Processing:** Logs the metadata and simulates writing the original payload to secure storage. Crucially, S2 never opens any TCP connection and does not send any data back.
+## 🛡️ Protocol Whitelisting & DPI
+To prevent unauthorized command-and-control (C2) or data exfiltration, the Data Diode uses **Deep Packet Inspection (DPI)** to verify the contents of every packet against known industrial protocol signatures.
+
+### Configuration
+Use the `ALLOWED_PROTOCOLS` environment variable to define a comma-separated list of allowed protocols:
+
+```bash
+# Example: Allow only Modbus and MQTT
+export ALLOWED_PROTOCOLS="MODBUS,MQTT"
+```
+
+### Supported Protocols
+| Key | Protocol | Description |
+| :--- | :--- | :--- |
+| **MODBUS** | Modbus TCP | Industry standard for PLC communication. Checks for Protocol ID 0x0000. |
+| **DNP3** | DNP3 | Standard for utilities/substations. Checks for start bytes `0x05 0x64`. |
+| **MQTT** | MQTT | IoT messaging protocol. Validates common Control Packet types (1-14). |
+| **ANY** | All Protocols | (Default) Allows any valid packet size through the diode. |
+
+*Note: Packets that do not match the configured signatures are dropped at the ingress (S1) and recorded as errors in the metrics.*
 
 ## 🛠️ Project Setup
 
@@ -85,6 +105,26 @@ The application is configured via environment variables. For OT deployments (e.g
 - **Interface Binding**: Supports binding to specific industrial network interfaces to prevent cross-talk.
 - **Clock Drift Immunity**: Filenames on the secure side (S2) use monotonic unique integers to prevent collisions during sudden NTP jumps.
 - **Resilient Supervision**: The app uses a multi-layered supervisor tree. Service 1 handlers are `:temporary` to prevent supervisor saturation during network flapping.
+
+
+## 🛡️ Security Posture & MITRE ATT&CK Analysis
+
+This project implements specific defenses against common OT/ICS attack vectors, verified by the `test/security_attack_test.exs` suite.
+
+| MITRE ATT&CK ID | Tactic | Technique | Defense Implemented | Verified By |
+| :--- | :--- | :--- | :--- | :--- |
+| **T1499.001** | Impact | Endpoint DoS (Service Exhaustion) | **Token Bucket Rate Limiter**:<br>Drops packets exceeding configured PPS limit (default 1000). | `MITRE T1499: DoS Flooding` |
+| **T1499.002** | Impact | Endpoint DoS (App Exploitation) | **Fuzzing Resilience**:<br>Robust handling of oversized/garbage TCP/UDP packets. | `TCP Fuzzing` (NegativeTest) |
+| **T1071** | C2 | Application Layer Protocol | **Protocol Guarding (DPI)**:<br>Configurable allow-list blocks unauthorized protocols (e.g. HTTP on Modbus port). | `MITRE T1071: Protocol Impersonation` |
+| **T1565.002** | Impact | Data Manipulation (Transmitted) | **CRC32 Integrity Check**:<br>Packets with invalid checksums are dropped and logged. | `MITRE T1565: Data Manipulation` |
+| **T1496** | Impact | Resource Hijacking (Disk Fill) | **Atomic Writes & Accounting**:<br>Graceful handling of ENOSPC (Disk Full) errors; random tokens prevent overwrite. | `Disk Full Resilience` (NegativeTest) |
+| **T0837** | Impact | Loss of Availability (Thermal) | **Thermal Watchdog**:<br>Hardware watchdog stops pulsing if CPU temp > 80°C, forcing safety reboot. | `Thermal Cutoff` (NegativeTest) |
+
+### Running Security Tests
+To execute the security simulation suite:
+```bash
+mix test test/security_attack_test.exs
+```
 
 ## 🚀 Remote Deployment (Raspberry Pi)
 

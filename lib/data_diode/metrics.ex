@@ -33,4 +33,11 @@ defmodule DataDiode.Metrics do
       Map.put(state, :uptime_seconds, uptime_sec)
     end)
   end
+
+  @doc "Reset stats for testing."
+  def reset_stats do
+    Agent.update(__MODULE__, fn state -> 
+      %{state | packets_forwarded: 0, error_count: 0}
+    end)
+  end
 end

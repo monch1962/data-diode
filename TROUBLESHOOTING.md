@@ -39,6 +39,11 @@ Run the automated health check script first:
    - Run `./bin/diode_status.sh` to check memory usage.
    - If memory is high, check if `S1.HandlerSupervisor` has too many active children.
 
+4. **Protocol Guard (DPI)**:
+   - S1 checks for specific OT protocol signatures if configured.
+   - Check logs for: `S1: Protocol guard blocked packet`.
+   - Verify `ALLOWED_PROTOCOLS` matches the source device traffic.
+
 ## 🚩 Symptom: "System clock jumps are causing issues"
 
 1. **Monotonic Filenames**:

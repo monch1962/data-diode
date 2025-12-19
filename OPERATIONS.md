@@ -47,5 +47,23 @@ SOC teams should configure alerts on the `HEALTH_PULSE` JSON logs:
 - **WARNING**: `cpu_temp > 75` (Potential hardware cooling failure).
 - **INFO**: `error_count > 5` (Potential network flapping or malformed ingress).
 
+## 🛡️ Protocol Configuration & Security
+To harden the system against malicious traffic, the `data_diode` includes a Deep Packet Inspection (DPI) protocol guard.
+
+### Configuring Whitelists
+Technicians can lock the diode to specific industrial protocols via the `ALLOWED_PROTOCOLS` environment variable in the `data_diode.service` file:
+
+- **Strict Mode**: `ALLOWED_PROTOCOLS="MODBUS"` (Only Modbus TCP allowed).
+- **Multi-Protocol Mode**: `ALLOWED_PROTOCOLS="DNP3,MQTT"` (Allows both DNP3 and MQTT).
+- **Open Mode**: `ALLOWED_PROTOCOLS="ANY"` (Allows all traffic with valid diode headers).
+
+### SOC Monitoring of Protocol Violations
+When a protocol violation occurs (e.g., someone attempts to send HTTP through a Modbus-only diode):
+1. The packet is **dropped immediately** on the S1 side.
+2. A `warning` is emitted in the logs: `S1 Encapsulator: Protocol guard blocked packet from 1.2.3.4`.
+3. The `error_count` metric is incremented.
+
+**SOC Action**: Persistent protocol violations from a single IP should trigger an investigation into the source device for potential compromise or misconfiguration.
+
 ---
 **Maintenance**: Review these metrics quarterly to adjust thresholds based on actual site performance.

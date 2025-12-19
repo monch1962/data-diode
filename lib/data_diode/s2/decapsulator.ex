@@ -115,9 +115,11 @@ defmodule DataDiode.S2.Decapsulator do
   end
 
   defp generate_filename(port) do
-    # OT Hardening: Add unique integer to ensure no collisions even if clock jumps back
+    # OT Hardening: Add unique integer AND randomness to ensure no collisions
+    # even if clock jumps back (e.g. reboot to 1970) and unique_integer resets.
     unique = System.unique_integer([:positive, :monotonic])
-    Path.join(data_dir(), "data_#{:os.system_time(:millisecond)}_#{unique}_#{port}.dat")
+    random_token = :crypto.strong_rand_bytes(4) |> Base.encode16()
+    Path.join(data_dir(), "data_#{:os.system_time(:millisecond)}_#{unique}_#{random_token}_#{port}.dat")
   end
 
   def data_dir do
