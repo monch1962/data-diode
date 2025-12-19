@@ -96,6 +96,14 @@ defmodule DataDiode.S2.Decapsulator do
   defp generate_filename(port) do
     # OT Hardening: Add unique integer to ensure no collisions even if clock jumps back
     unique = System.unique_integer([:positive, :monotonic])
-    "data_#{:os.system_time(:millisecond)}_#{unique}_#{port}.dat"
+    Path.join(data_dir(), "data_#{:os.system_time(:millisecond)}_#{unique}_#{port}.dat")
+  end
+
+  def data_dir do
+    case Application.fetch_env(:data_diode, :data_dir) do
+      {:ok, nil} -> "."
+      {:ok, dir} -> dir
+      :error -> "."
+    end
   end
 end

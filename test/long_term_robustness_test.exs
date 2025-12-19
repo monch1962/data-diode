@@ -42,6 +42,7 @@ defmodule DataDiode.LongTermRobustnessTest do
     Process.flag(:trap_exit, false)
 
     # Start new for unexpected message
+    {:ok, _c2} = :gen_tcp.connect({127,0,0,1}, port, [:binary, active: false])
     {:ok, s2} = :gen_tcp.accept(l)
     {:ok, pid2} = TCPHandler.start_link(s2)
     capture_log(fn ->
@@ -49,13 +50,25 @@ defmodule DataDiode.LongTermRobustnessTest do
       _ = :sys.get_state(pid2)
     end) =~ "S1: TCPHandler received unexpected message"
 
-    # Trigger TCP Closed
+    # Triggering TCP Closed
     capture_log(fn ->
       send(pid2, {:tcp_closed, s2})
       wait_for_death(pid2)
     end) =~ "S1: Connection closed"
 
-    :gen_tcp.close(c)
+    # Coverage for handle_info(:accept_loop, state)
+    {:ok, c3} = :gen_tcp.connect({127,0,0,1}, port, [:binary, active: false])
+    {:ok, s3} = :gen_tcp.accept(l)
+    {:ok, pid3} = TCPHandler.start_link(s3)
+    {:noreply, _} = TCPHandler.handle_info(:accept_loop, %{socket: s3, src_ip: "127.0.0.1"})
+
+    # Coverage for activation failure (peername error)
+    :gen_tcp.close(s3)
+    capture_log(fn ->
+      {:stop, :normal, _} = TCPHandler.handle_info(:activate, %{socket: s3})
+    end) =~ "S1: Client disconnected before activation"
+
+    :gen_tcp.close(c3)
     :gen_tcp.close(l)
   end
 
@@ -81,13 +94,13 @@ defmodule DataDiode.LongTermRobustnessTest do
     
     # Fatal UDP error
     capture_log(fn ->
-      S2Listener.handle_info({:udp_error, mock_socket, :ebadf}, mock_socket)
-    end) =~ "S2: UDP Listener fatal error"
+      {:stop, :ebadf, ^mock_socket} = S2Listener.handle_info({:udp_error, mock_socket, :ebadf}, mock_socket)
+    end) =~ "S2: UDP socket error: :ebadf"
 
     # Unexpected msg
     capture_log(fn ->
       S2Listener.handle_info(:unknown, mock_socket)
-    end) =~ "S2: Received unexpected message"
+    end) =~ "S2: Received unexpected message: :unknown"
     
     # Passive re-arm
     {:noreply, ^mock_socket} = S2Listener.handle_info({:udp_passive, mock_socket}, mock_socket)

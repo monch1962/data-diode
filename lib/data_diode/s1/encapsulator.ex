@@ -24,7 +24,12 @@ defmodule DataDiode.S1.Encapsulator do
   @callback encapsulate_and_send(String.t(), :inet.port_number(), binary()) :: :ok
   @spec encapsulate_and_send(String.t(), :inet.port_number(), binary()) :: :ok
   def encapsulate_and_send(src_ip, src_port, payload) do
-    GenServer.cast(@name, {:send, src_ip, src_port, payload})
+    # Try to find the process by name, defaulting to @name
+    target = case Process.whereis(@name) do
+      nil -> @name
+      pid -> pid
+    end
+    GenServer.cast(target, {:send, src_ip, src_port, payload})
   end
 
   # --------------------------------------------------------------------------
@@ -54,8 +59,7 @@ defmodule DataDiode.S1.Encapsulator do
 
   @impl true
   def handle_cast({:send, src_ip, src_port, payload}, state) do
-    # 2. Convert IP (performance optimization: could potentially be moved to caller,
-    #    but kept here to keep API clean)
+    # 2. Convert IP
     case ip_to_binary(src_ip) do
       {:ok, ip_binary} ->
         # 3. Construct packet
@@ -102,6 +106,12 @@ defmodule DataDiode.S1.Encapsulator do
   end
 
   defp resolve_s2_port() do
-    Application.get_env(:data_diode, :s2_port, @s2_udp_port)
+    port = Application.get_env(:data_diode, :s2_port, @s2_udp_port)
+    if is_integer(port) and port > 0 and port <= 65535 do
+      port
+    else
+      Logger.warning("S1 Encapsulator: Invalid S2_PORT #{inspect(port)}, using default #{@s2_udp_port}")
+      @s2_udp_port
+    end
   end
 end

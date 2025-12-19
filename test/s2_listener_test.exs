@@ -1,20 +1,22 @@
 Mox.defmock(DataDiode.S2.DecapsulatorMock, for: DataDiode.S2.Decapsulator)
 
 defmodule DataDiode.S2.ListenerTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   alias DataDiode.S2.Listener
 
   import Mox
 
   setup do
-    # Configure the listener to use the mock decapsulator
     Application.put_env(:data_diode, :decapsulator, DataDiode.S2.DecapsulatorMock)
+    Application.put_env(:data_diode, :s2_port, 0)
+    Application.delete_env(:data_diode, :s2_ip)
 
-    # Ensure the mock is verified after each test
     :ok = set_mox_global()
     
     on_exit(fn ->
       Application.delete_env(:data_diode, :decapsulator)
+      Application.delete_env(:data_diode, :s2_port)
+      Application.delete_env(:data_diode, :s2_ip)
     end)
     :ok
   end
@@ -29,7 +31,8 @@ defmodule DataDiode.S2.ListenerTest do
   test "udp_options handles invalid IP" do
     Application.put_env(:data_diode, :s2_ip, "invalid")
     opts = Listener.udp_options()
-    assert Keyword.get(opts, :ip) == {0, 0, 0, 0}
+    # It falls back to default options which DON'T include :ip
+    refute Keyword.has_key?(opts, :ip)
   end
 
   test "resolve_listen_port returns configured port" do
@@ -41,7 +44,7 @@ defmodule DataDiode.S2.ListenerTest do
   test "udp_options returns expected settings" do
     opts = Listener.udp_options()
     assert :binary in opts
-    assert {:active, true} in opts
+    assert {:active, :once} in opts
   end
 
   test "init returns local socket on success" do
@@ -58,7 +61,7 @@ defmodule DataDiode.S2.ListenerTest do
     
     # Start a real listener
     Application.put_env(:data_diode, :s2_port, 0)
-    {:ok, pid} = Listener.start_link(name: :s2_saturation_test)
+    {:ok, pid} = Listener.start_link(name: :s2_saturation_test_unique)
     
     # Get port
     socket = :sys.get_state(pid)
@@ -82,7 +85,7 @@ defmodule DataDiode.S2.ListenerTest do
   end
 
   test "handle_info :udp_closed stops the process" do
-    assert {:stop, :shutdown, :dummy_state} == Listener.handle_info({:udp_closed, :dummy_socket}, :dummy_state)
+    assert {:stop, :udp_closed, :dummy_socket} == Listener.handle_info({:udp_closed, :dummy_socket}, :dummy_state)
   end
 
   test "integration: UDP listener accepts packet and processes it" do

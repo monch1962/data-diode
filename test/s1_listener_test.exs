@@ -2,12 +2,15 @@ defmodule DataDiode.S1.ListenerTest do
   use ExUnit.Case, async: false
   alias DataDiode.S1.Listener
 
-  # Use a module attribute to access the private function for testing purposes
-  @resolve_port :resolve_listen_port
-
   setup do
-    # Reset config to defaults
-    Application.delete_env(:data_diode, :s1_port)
+    # Force ephemeral ports to avoid :eaddrinuse
+    Application.put_env(:data_diode, :s1_port, 0)
+    Application.delete_env(:data_diode, :s1_ip)
+    
+    on_exit(fn ->
+      Application.delete_env(:data_diode, :s1_port)
+      Application.delete_env(:data_diode, :s1_ip)
+    end)
     :ok
   end
 
@@ -38,8 +41,7 @@ defmodule DataDiode.S1.ListenerTest do
 
   test "accepts connection and delegates to HandlerSupervisor" do
     # Start a real listener on port 0
-    Application.put_env(:data_diode, :s1_port, 0)
-    {:ok, pid} = Listener.start_link(name: :s1_test_listener_integration)
+    {:ok, pid} = Listener.start_link(name: :s1_test_listener_integration_unique)
     
     # Get the actual port (now possible because listener is non-blocking)
     socket = :sys.get_state(pid)
@@ -63,7 +65,7 @@ defmodule DataDiode.S1.ListenerTest do
   test "recovers from socket closure (flapping interface)" do
     # Start a real listener UNLINKED so the test doesn't crash when it stops
     Application.put_env(:data_diode, :s1_port, 0)
-    {:ok, pid} = GenServer.start(Listener, :ok, name: :s1_flapping_test)
+    {:ok, pid} = GenServer.start(Listener, :ok, name: :s1_flapping_test_unique)
     
     # Monitor it
     ref = Process.monitor(pid)
@@ -98,11 +100,12 @@ defmodule DataDiode.S1.ListenerTest do
   end
 
   test "resolves to default port when s1_port is not set" do
-    assert {:ok, 8080} = apply(Listener, @resolve_port, [])
+    Application.delete_env(:data_diode, :s1_port)
+    assert {:ok, 8080} = Listener.resolve_listen_port()
   end
 
   test "resolves to specified port from Application config" do
     Application.put_env(:data_diode, :s1_port, 42000)
-    assert {:ok, 42000} = apply(Listener, @resolve_port, [])
+    assert {:ok, 42000} = Listener.resolve_listen_port()
   end
 end
