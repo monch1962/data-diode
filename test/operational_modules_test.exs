@@ -120,9 +120,15 @@ defmodule DataDiode.OperationalModulesTest do
     assert DiskCleaner.data_dir() == "/tmp/diode_test"
     
     # Decapsulator: Normal write
-    DataDiode.S2.Decapsulator.process_packet(<<127,0,0,1, 80, 0,0,0,4, "data">>)
+    header_payload = <<127,0,0,1, 80, 0,0,0,4, "data">>
+    checksum = :erlang.crc32(header_payload)
+    DataDiode.S2.Decapsulator.process_packet(header_payload <> <<checksum::32>>)
+
     # Decapsulator: Heartbeat branch
-    DataDiode.S2.Decapsulator.process_packet(<<127,0,0,1, 0,0, "HEARTBEAT">>)
+    hb_payload = <<127,0,0,1, 0,0, "HEARTBEAT">>
+    hb_checksum = :erlang.crc32(hb_payload)
+    DataDiode.S2.Decapsulator.process_packet(hb_payload <> <<hb_checksum::32>>)
+    
     # Decapsulator: Malformed
     capture_log(fn -> DataDiode.S2.Decapsulator.process_packet(<<1>>) end)
     

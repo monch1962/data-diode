@@ -51,7 +51,10 @@ defmodule DataDiode.Application do
     },
     # 5. Service 2: Async Task Supervisor
     # OT Hardening: Limit concurrent processing tasks
-    {Task.Supervisor, name: DataDiode.S2.TaskSupervisor, max_children: 200}
+    {Task.Supervisor, name: DataDiode.S2.TaskSupervisor, max_children: 200},
+
+    # 7. Hardware Watchdog Monitoring
+    {DataDiode.Watchdog, []}
   ]
 
   # Define the supervision strategy: :one_for_one

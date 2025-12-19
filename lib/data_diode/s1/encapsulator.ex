@@ -43,7 +43,15 @@ defmodule DataDiode.S1.Encapsulator do
     case :gen_udp.open(0) do
       {:ok, socket} ->
         s2_port = resolve_s2_port()
-        {:ok, %{socket: socket, dest_port: s2_port}}
+        limit = resolve_rate_limit()
+        
+        {:ok, %{
+          socket: socket, 
+          dest_port: s2_port, 
+          tokens: limit, 
+          limit: limit, 
+          last_refill: System.monotonic_time(:millisecond)
+        }}
 
       {:error, reason} ->
         Logger.error("S1 Encapsulator: Failed to open UDP socket: #{inspect(reason)}")
@@ -59,28 +67,47 @@ defmodule DataDiode.S1.Encapsulator do
 
   @impl true
   def handle_cast({:send, src_ip, src_port, payload}, state) do
-    # 2. Convert IP
-    case ip_to_binary(src_ip) do
-      {:ok, ip_binary} ->
-        # 3. Construct packet
-        udp_packet = <<ip_binary::binary-4, src_port::integer-unsigned-big-16, payload::binary>>
+    state = refill_tokens(state)
 
-        # 4. Send using existing socket
-        case :gen_udp.send(state.socket, @s2_udp_target, state.dest_port, udp_packet) do
-          :ok ->
-            DataDiode.Metrics.inc_packets()
-            :ok # Success
-          {:error, reason} ->
+    cond do
+      state.tokens <= 0 ->
+        DataDiode.Metrics.inc_errors()
+        if rem(System.unique_integer([:positive]), 100) == 0 do
+          Logger.warning("S1 Encapsulator: Rate limit exceeded, dropping packets.")
+        end
+        {:noreply, state}
+
+      not protocol_allowed?(payload) ->
+        DataDiode.Metrics.inc_errors()
+        Logger.warning("S1 Encapsulator: Protocol guard blocked packet from #{src_ip}.")
+        {:noreply, %{state | tokens: state.tokens - 1}}
+
+      true ->
+        # 2. Convert IP
+        case ip_to_binary(src_ip) do
+          {:ok, ip_binary} ->
+            # 3. Construct packet with CRC32 checksum
+            header_payload = <<ip_binary::binary-4, src_port::integer-unsigned-big-16, payload::binary>>
+            checksum = :erlang.crc32(header_payload)
+            final_packet = <<header_payload::binary, checksum::integer-unsigned-big-32>>
+
+            # 4. Send using existing socket
+            case :gen_udp.send(state.socket, @s2_udp_target, state.dest_port, final_packet) do
+              :ok ->
+                DataDiode.Metrics.inc_packets()
+                :ok # Success
+              {:error, reason} ->
+                DataDiode.Metrics.inc_errors()
+                Logger.warning("S1 Encapsulator: Failed to send packet: #{inspect(reason)}")
+            end
+
+          {:error, :invalid_ip} ->
             DataDiode.Metrics.inc_errors()
-            Logger.warning("S1 Encapsulator: Failed to send packet: #{inspect(reason)}")
+            Logger.warning("S1 Encapsulator: Invalid IP #{src_ip}, dropping packet.")
         end
 
-      {:error, :invalid_ip} ->
-        DataDiode.Metrics.inc_errors()
-        Logger.warning("S1 Encapsulator: Invalid IP #{src_ip}, dropping packet.")
+        {:noreply, %{state | tokens: state.tokens - 1}}
     end
-
-    {:noreply, state}
   end
 
   @impl true
@@ -112,6 +139,32 @@ defmodule DataDiode.S1.Encapsulator do
     else
       Logger.warning("S1 Encapsulator: Invalid S2_PORT #{inspect(port)}, using default #{@s2_udp_port}")
       @s2_udp_port
+    end
+  end
+
+  defp resolve_rate_limit do
+    Application.get_env(:data_diode, :max_packets_per_sec, 1000)
+  end
+
+  defp refill_tokens(state) do
+    now = System.monotonic_time(:millisecond)
+    elapsed = now - state.last_refill
+    
+    if elapsed >= 1000 do
+      %{state | tokens: state.limit, last_refill: now}
+    else
+      state
+    end
+  end
+
+  defp protocol_allowed?(payload) do
+    # Basic DPI / Protocol Guarding
+    # Allow-list via environment variable prefix (hex or string)
+    case Application.get_env(:data_diode, :protocol_allow_list) do
+      nil -> true # Default: allow all
+      list when is_list(list) ->
+        Enum.any?(list, fn prefix -> String.starts_with?(payload, prefix) end)
+      _ -> true
     end
   end
 end

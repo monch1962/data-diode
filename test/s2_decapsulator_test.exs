@@ -6,7 +6,11 @@ defmodule DataDiode.S2.DecapsulatorTest do
 
   # Encapsulated header: <<192, 168, 1, 1>> (IP) <> <<51234::16>> (Port)
   @test_header <<192, 168, 1, 1, 200, 10>>
-  @test_packet @test_header <> @test_payload
+  @test_packet (fn payload ->
+    packet = @test_header <> payload
+    crc = :erlang.crc32(packet)
+    packet <> <<crc::32>>
+  end).(@test_payload)
 
   # NOTE: The previous approach failed because defining 'defp' inside 'test' is illegal.
   # We now check the public contract of the function: it returns :ok on success.
@@ -17,31 +21,41 @@ defmodule DataDiode.S2.DecapsulatorTest do
   end
 
   test "process_packet/1 returns error on truncated packet" do
-    # Packet is only 5 bytes, requires 6 for the IP/Port header
-    assert {:error, :invalid_packet_size} == Decapsulator.process_packet(<<1, 2, 3, 4, 5>>)
+    # Packet is only 5 bytes, requires 6 for the IP/Port header + 4 for CRC
+    assert {:error, :invalid_packet_size_or_missing_checksum} == Decapsulator.process_packet(<<1, 2, 3, 4, 5>>)
   end
 
   test "process_packet/1 with extremely short packet" do
-    # Header is 6 bytes. 2 bytes is definitely too short.
-    assert {:error, :invalid_packet_size} = Decapsulator.process_packet(<<1, 2>>)
+    # Requires at least 10 bytes.
+    assert {:error, :invalid_packet_size_or_missing_checksum} = Decapsulator.process_packet(<<1, 2>>)
   end
 
   test "process_packet/1 with exact header size but no payload" do
-    # Valid header for 0.0.0.0:0
+    # Valid header for 0.0.0.0:0 + CRC
     header = <<0, 0, 0, 0, 0, 0>>
-    assert :ok = Decapsulator.process_packet(header)
+    crc = :erlang.crc32(header)
+    packet = header <> <<crc::32>>
+    assert :ok = Decapsulator.process_packet(packet)
   end
 
-  test "process_packet/1 with corrupted IP data" do
+  test "process_packet/1 with corrupted core data" do
     header = <<127, 0, 0, 1, 0, 80>>
     payload = "data"
-    # It just takes the rest of the binary as payload.
-    assert :ok = Decapsulator.process_packet(header <> payload <> "extra")
+    packet = header <> payload
+    crc = :erlang.crc32(packet)
+    
+    # Checksum failure
+    assert {:error, :integrity_check_failed} = Decapsulator.process_packet(packet <> <<crc + 1::32>>)
+    
+    # Valid
+    assert :ok = Decapsulator.process_packet(packet <> <<crc::32>>)
   end
 
   test "process_packet/1 handles empty payload" do
-    # Only 6 bytes header, empty body
-    packet = @test_header
+    # Only 6 bytes header + 4 bytes CRC
+    header = @test_header
+    crc = :erlang.crc32(header)
+    packet = header <> <<crc::32>>
     assert :ok == Decapsulator.process_packet(packet)
   end
 
@@ -56,10 +70,6 @@ defmodule DataDiode.S2.DecapsulatorTest do
   end
 
   test "process_packet/1 handles invalid IP bytes" do
-    # While ip_to_binary handles some checks, process_packet might still be hit with raw garbage.
-    # However, if it's 6 bytes, it will parse. The issue is if the IP is not valid?
-    # Actually, any 4 bytes can be an IP. 
-    # But let's test a very short packet.
-    assert {:error, :invalid_packet_size} == Decapsulator.process_packet(<<>>)
+    assert {:error, :invalid_packet_size_or_missing_checksum} == Decapsulator.process_packet(<<>>)
   end
 end

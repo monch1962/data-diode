@@ -59,11 +59,12 @@ defmodule DataDiode.S1.EncapsulatorTest do
     assert_receive {:udp, _socket, _ip, _port, packet}, 1000
     
     # Verify Content
-    # Format: <<IP::32, Port::16, Payload::binary>>
     expected_ip = <<192, 168, 1, 5>>
     expected_port = <<8888::integer-big-16>>
+    expected_header_payload = expected_ip <> expected_port <> payload
+    expected_crc = :erlang.crc32(expected_header_payload)
     
-    assert packet == expected_ip <> expected_port <> payload
+    assert packet == expected_header_payload <> <<expected_crc::integer-unsigned-big-32>>
   end
   
   test "handles invalid IP gracefully" do
