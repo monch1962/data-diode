@@ -1,6 +1,8 @@
 defmodule DataDiode.MixProject do
   use Mix.Project
 
+  @target System.get_env("MIX_TARGET")
+
   def project do
     [
       app: :data_diode,
@@ -11,31 +13,20 @@ defmodule DataDiode.MixProject do
         release: :prod,
         test: :test
       ],
-      # 🚨 FINAL FIX: Changed conflicting :applications key back to standard :extra_applications.
       deps: deps(),
-      releases: [
-        data_diode: [
-          include_erts: true,
-          include_src: false
-        ]
-      ]
+      releases: releases(),
+      config_path: "config/config.exs"
     ]
   end
 
-  # Configuration for the OTP application
-  # This function now correctly populates the :extra_applications list.
   def application do
     [
       mod: {DataDiode.Application, []},
-      # Ensure all required applications, including OTel, are started
       extra_applications: [
         :logger,
         :runtime_tools,
-        # For networking functions
         :inets,
-        # For secure transport
         :ssl,
-        # OTel depends on telemetry
         :opentelemetry_api,
         :opentelemetry_exporter,
         :opentelemetry
@@ -43,17 +34,55 @@ defmodule DataDiode.MixProject do
     ]
   end
 
-  # Dependencies can be any of those defined in Hex, other Mix projects or git
   defp deps do
     [
       {:logger_json, "~> 5.0"},
-      # OpenTelemetry Tracing Dependencies
       {:opentelemetry_api, "~> 1.0"},
       {:opentelemetry, "~> 1.0"},
-      # Use the Exporter for console output and eventual external collection
       {:opentelemetry_exporter, "~> 1.0"},
-      # Mox dependency for testing (fixed to run globally due to compile error)
-      {:mox, "~> 1.0"}
-    ]
+      {:mox, "~> 1.0", only: :test}
+    ] ++ nerves_deps()
+  end
+
+  defp nerves_deps do
+    if @target do
+      [
+        {:nerves, "~> 1.10.0", runtime: false},
+        {:nerves_bootstrap, "~> 1.13"},
+        {:shoehorn, "~> 0.9.1"},
+        {:vintage_net, "~> 0.13.0"},
+        # Official Nerves Systems for Raspberry Pi
+        {:nerves_system_rpi, "~> 1.25", runtime: false, targets: :rpi},
+        {:nerves_system_rpi0, "~> 1.25", runtime: false, targets: :rpi0},
+        {:nerves_system_rpi2, "~> 1.25", runtime: false, targets: :rpi2},
+        {:nerves_system_rpi3a, "~> 1.25", runtime: false, targets: :rpi3a},
+        {:nerves_system_rpi4, "~> 1.25", runtime: false, targets: :rpi4}
+      ]
+    else
+      []
+    end
+  end
+
+  defp releases do
+    [
+      data_diode: [
+        include_erts: true,
+        include_src: false
+      ]
+    ] ++ nerves_releases()
+  end
+
+  defp nerves_releases do
+    if @target do
+      [
+        nerves: [
+          include_erts: false,
+          include_src: false,
+          steps: [:assemble, &Nerves.Release.init/1, :tar]
+        ]
+      ]
+    else
+      []
+    end
   end
 end

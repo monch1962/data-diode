@@ -1,0 +1,16 @@
+## Erlang VM settings for Nerves
+
+# Set the Erlang cookie
+--cookie <%= Mix.Project.config()[:app] %>
+
+# Set the node name
+--name <%= Mix.Project.config()[:app] %>@ nerves.local
+
+# Increase the number of processes
++P 262144
+
+# Enable kernel poll
++K true
+
+# Set the async thread pool size
++A 16
