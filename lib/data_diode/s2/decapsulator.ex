@@ -24,10 +24,10 @@ defmodule DataDiode.S2.Decapsulator do
           
           if payload == "HEARTBEAT" do
             DataDiode.S2.HeartbeatMonitor.heartbeat_received()
+            :ok
           else
             write_to_secure_storage(src_ip, src_port, payload)
           end
-          :ok
 
         {:error, reason} ->
           DataDiode.Metrics.inc_errors()
@@ -71,9 +71,6 @@ defmodule DataDiode.S2.Decapsulator do
     {:ok, "#{a}.#{b}.#{c}.#{d}"}
   end
 
-  defp binary_to_ip(_) do
-    {:error, :invalid_ip_binary}
-  end
 
   # --------------------------------------------------------------------------
   # Secure Storage Logic (Hardened)

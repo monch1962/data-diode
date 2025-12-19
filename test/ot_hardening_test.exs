@@ -1,5 +1,5 @@
 defmodule DataDiode.OTHardeningTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   import ExUnit.CaptureLog
   require Logger
 
@@ -63,8 +63,13 @@ defmodule DataDiode.OTHardeningTest do
   end
 
   test "S2.Decapsulator handles atomic write failures", %{data_dir: data_dir} do
-    # Try to write to a path that doesn't exist to force File.write failure
-    Application.put_env(:data_diode, :data_dir, "/non/existent/path/for/failure")
+    # Try to write to a path that is a FILE (ENOTDIR error)
+    # We create a file, then set data_dir to that path.
+    # When Decapsulator tries Path.join(data_dir, filename), it creates a path like /file/filename
+    # File.write to that fails.
+    dummy_file = Path.join(data_dir, "dummy_file")
+    File.write!(dummy_file, "")
+    Application.put_env(:data_diode, :data_dir, dummy_file)
     
     packet = (fn payload ->
       header = <<127, 0, 0, 1, 0, 80>>
@@ -74,7 +79,9 @@ defmodule DataDiode.OTHardeningTest do
     end).("FAIL")
     
     assert capture_log(fn -> 
-      assert {:error, :enoent} = DataDiode.S2.Decapsulator.process_packet(packet)
+      # Expecting ENOTDIR (Not a directory) or similar error
+      assert {:error, reason} = DataDiode.S2.Decapsulator.process_packet(packet)
+      assert reason in [:enotdir, :enoent]
     end) =~ "S2: Secure write failed"
   end
 
@@ -160,26 +167,16 @@ defmodule DataDiode.OTHardeningTest do
     # unless we are running the whole app. 
     # Let's ensure it handles the unhealthy state
     capture_log(fn -> 
-      GenServer.info(pid, :pulse)
+      send(pid, :pulse)
     end) =~ "System unhealthy"
 
     # Hit the pulse failure branch
-    # Try to write to a readonly or invalid path
-    :sys.replace_state(pid, fn state -> %{state | path: "/non/existent/watchdog/path"} end)
+    # Direct Key: We can call the exposed function to guarantee we hit the File.write failure
+    # without relying on async timing or health checks.
     assert capture_log(fn -> 
-      # We need to bypass the health check to reach the pulse write
-      # but we can just call the private pulse function if it were public.
-      # Or we can just mock the registers? 
-      # Actually, let's just use a path that is a directory
-      dir = Path.join(File.cwd!(), "test_dir_not_file")
-      File.mkdir_p!(dir)
-      :sys.replace_state(pid, fn state -> %{state | path: dir} end)
-      
-      # We need it to be healthy to skip the health check
-      # but that's hard to spoof without Mox.
-      # Let's just finish the coverage we have.
-      :ok
-    end)
+      # Trying to write to a CWD (directory) as a file fails
+      DataDiode.Watchdog.pulse(File.cwd!())
+    end) =~ "Failed to pulse"
     
     GenServer.stop(pid)
   end

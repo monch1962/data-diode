@@ -114,6 +114,7 @@ defmodule DataDiode.OperationalModulesTest do
     # --- 5. DiskCleaner & Decapsulator ---
     DiskCleaner.handle_info(:cleanup, %{})
     DiskCleaner.get_disk_free_percent("/")
+    assert DiskCleaner.get_disk_free_percent("/non/existent/path") == 100
     
     # Hit explicit data_dir env
     Application.put_env(:data_diode, :data_dir, "/tmp/diode_test")

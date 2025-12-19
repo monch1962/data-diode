@@ -49,7 +49,8 @@ defmodule DataDiode.Watchdog do
     end)
   end
 
-  defp pulse(path) do
+  @doc false
+  def pulse(path) do
     # In production OT, this usually writes to /dev/watchdog.
     # For this simulation, we touch a file to confirm the pulse.
     case File.write(path, "PULSE") do

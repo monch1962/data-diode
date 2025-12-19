@@ -24,3 +24,10 @@ data_diode-*.tar
 
 *.log
 *.dat
+*.tmp
+/test_data_hardening/
+/test_dir_not_file/
+/.elixir_ls/
+/.vscode/
+*.swp
+.DS_Store
