@@ -29,6 +29,7 @@ defmodule DataDiode.S1.Listener do
       {:error, {:invalid_port, v}} ->
         Logger.error("S1: Invalid LISTEN_PORT: #{inspect(v)}")
         {:stop, :invalid_port_value}
+
       {:error, reason} ->
         Logger.error("S1: Failed to listen: #{inspect(reason)}")
         {:stop, reason}
@@ -37,7 +38,11 @@ defmodule DataDiode.S1.Listener do
 
   @impl true
   def handle_call(:port, _from, socket) do
-    {:reply, case :inet.port(socket) do {:ok, p} -> p; _ -> nil end, socket}
+    {:reply,
+     case :inet.port(socket) do
+       {:ok, p} -> p
+       _ -> nil
+     end, socket}
   end
 
   @impl true
@@ -45,7 +50,12 @@ defmodule DataDiode.S1.Listener do
     case :gen_tcp.accept(listen_socket, 500) do
       {:ok, client_socket} ->
         Logger.info("S1: New connection accepted.")
-        DataDiode.S1.HandlerSupervisor.start_handler(client_socket)
+
+        case DataDiode.S1.HandlerSupervisor.start_handler(client_socket) do
+          {:ok, pid} -> :gen_tcp.controlling_process(client_socket, pid)
+          _ -> :gen_tcp.close(client_socket)
+        end
+
         send(self(), :accept_loop)
         {:noreply, listen_socket}
 
@@ -68,10 +78,15 @@ defmodule DataDiode.S1.Listener do
   # Helpers
   def listen_options(ip \\ nil) do
     base = [:binary, :inet, {:reuseaddr, true}, {:active, false}]
+
     case ip || Application.get_env(:data_diode, :s1_ip) do
-      nil -> base
-      :any -> base
-      ip_str -> 
+      nil ->
+        base
+
+      :any ->
+        base
+
+      ip_str ->
         case parse_ip(ip_str) do
           :any -> base
           addr -> [{:ip, addr} | base]
@@ -81,10 +96,15 @@ defmodule DataDiode.S1.Listener do
 
   def parse_ip(ip) when is_binary(ip) do
     case :inet.parse_address(String.to_charlist(ip)) do
-      {:ok, addr} -> addr
-      _ -> Logger.warning("S1: Invalid LISTEN_IP #{ip}, using all interfaces."); :any
+      {:ok, addr} ->
+        addr
+
+      _ ->
+        Logger.warning("S1: Invalid LISTEN_IP #{ip}, using all interfaces.")
+        :any
     end
   end
+
   def parse_ip(_), do: :any
 
   def resolve_listen_port do

@@ -6,7 +6,8 @@ defmodule DataDiode.S1.TCPHandler do
   use GenServer, restart: :temporary
   require Logger
 
-  @max_packet_size 1_000_000 # 1MB
+  # 1MB
+  @max_packet_size 1_000_000
 
   # --------------------------------------------------------------------------
   # API
@@ -30,14 +31,16 @@ defmodule DataDiode.S1.TCPHandler do
   @impl true
   def handle_info(:activate, state = %{socket: socket}) do
     # Resolve source info once
-    {src_ip, src_port} = case :inet.peername(socket) do
-      {:ok, {ip, port}} -> {to_string(:inet.ntoa(ip)), port}
-      _ -> {"unknown", 0}
-    end
+    {src_ip, src_port} =
+      case :inet.peername(socket) do
+        {:ok, {ip, port}} -> {to_string(:inet.ntoa(ip)), port}
+        _ -> {"unknown", 0}
+      end
 
     case :inet.setopts(socket, active: :once) do
       :ok ->
         {:noreply, %{state | src_ip: src_ip, src_port: src_port}}
+
       {:error, reason} ->
         Logger.info("S1: Failed to activate handler: #{inspect(reason)}")
         :gen_tcp.close(socket)
@@ -48,11 +51,19 @@ defmodule DataDiode.S1.TCPHandler do
   @impl true
   def handle_info({:tcp, socket, data}, state) do
     if byte_size(data) > @max_packet_size do
-      Logger.warning("S1: Dropping oversized packet (#{byte_size(data)} bytes) from #{state.src_ip}")
+      Logger.warning(
+        "S1: Dropping oversized packet (#{byte_size(data)} bytes) from #{state.src_ip}"
+      )
     else
-      Logger.info("S1: Forwarded #{byte_size(data)} bytes.")
+      Logger.debug("S1: Processing #{byte_size(data)} bytes from #{state.src_ip}.")
       # Delegate to encapsulator
-      encapsulator().encapsulate_and_send(state.src_ip, state.src_port, data)
+      target = encapsulator()
+
+      if is_atom(target) and function_exported?(target, :encapsulate_and_send, 3) do
+        target.encapsulate_and_send(state.src_ip, state.src_port, data)
+      else
+        GenServer.cast(target, {:send, state.src_ip, state.src_port, data})
+      end
     end
 
     :inet.setopts(socket, active: :once)
