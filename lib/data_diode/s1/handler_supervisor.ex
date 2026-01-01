@@ -1,4 +1,12 @@
 defmodule DataDiode.S1.HandlerSupervisor do
+  @moduledoc """
+  Dynamic supervisor for TCP connection handlers on Service 1.
+
+  Manages a pool of temporary TCPHandler processes, one per active connection.
+  Implements OT hardening by limiting concurrent connections to prevent memory
+  exhaustion on resource-constrained hardware (e.g., Raspberry Pi).
+  """
+
   use DynamicSupervisor
 
   @name __MODULE__

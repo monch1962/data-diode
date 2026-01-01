@@ -1,8 +1,14 @@
 defmodule DataDiode.Application do
+  @moduledoc """
+  Main application module for the Data Diode.
+  Initializes and supervises all child processes.
+  """
   use Application
 
   @impl true
   def start(_type, _args) do
+    # Validate configuration before starting any processes
+    DataDiode.ConfigValidator.validate!()
     # Define the children processes the supervisor must start and monitor.
     children = [
       # 1. Operational Metrics Agent

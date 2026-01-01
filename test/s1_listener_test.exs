@@ -1,5 +1,6 @@
 defmodule DataDiode.S1.ListenerTest do
   use ExUnit.Case, async: false
+  import ExUnit.CaptureLog
   alias DataDiode.S1.Listener
 
   setup do
@@ -120,5 +121,60 @@ defmodule DataDiode.S1.ListenerTest do
   test "resolves to specified port from Application config" do
     Application.put_env(:data_diode, :s1_port, 42000)
     assert {:ok, 42000} = Listener.resolve_listen_port()
+  end
+
+  test "returns error for invalid port configuration" do
+    Application.put_env(:data_diode, :s1_port, -1)
+    assert {:error, {:invalid_port, -1}} = Listener.resolve_listen_port()
+  end
+
+  test "returns error for port too large" do
+    Application.put_env(:data_diode, :s1_port, 70000)
+    assert {:error, {:invalid_port, 70000}} = Listener.resolve_listen_port()
+  end
+
+  test "returns error for non-integer port" do
+    Application.put_env(:data_diode, :s1_port, "not_a_number")
+    assert {:error, {:invalid_port, "not_a_number"}} = Listener.resolve_listen_port()
+  end
+
+  test "listen_options handles :any IP" do
+    Application.put_env(:data_diode, :s1_ip, :any)
+    opts = Listener.listen_options()
+    # Should have base options but no specific :ip option
+    assert :binary in opts
+    assert :inet in opts
+    refute Keyword.has_key?(opts, :ip)
+  end
+
+  test "listen_options handles nil IP" do
+    opts = Listener.listen_options(nil)
+    # Should have base options but no specific :ip option
+    assert :binary in opts
+    assert :inet in opts
+    refute Keyword.has_key?(opts, :ip)
+  end
+
+  test "listen_options includes IP when explicitly provided" do
+    opts = Listener.listen_options("192.168.1.1")
+    assert {:ip, {192, 168, 1, 1}} in opts
+  end
+
+  test "handle_info with unexpected message logs and continues" do
+    {:ok, socket} = :gen_tcp.listen(0, [])
+    assert capture_log(fn ->
+      {:noreply, ^socket} = Listener.handle_info(:unexpected_message, socket)
+    end) =~ "unexpected message"
+    :gen_tcp.close(socket)
+  end
+
+  test "handle_call returns port number" do
+    {:ok, pid} = Listener.start_link(name: :s1_port_test_unique)
+    socket = :sys.get_state(pid)
+    {:ok, port} = :inet.port(socket)
+
+    assert {:reply, ^port, ^socket} = Listener.handle_call(:port, self(), socket)
+
+    GenServer.stop(pid)
   end
 end

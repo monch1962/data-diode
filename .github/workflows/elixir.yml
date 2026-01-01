@@ -35,5 +35,14 @@ jobs:
         restore-keys: ${{ runner.os }}-mix-
     - name: Install dependencies
       run: mix deps.get
-    - name: Run tests
-      run: mix test
+    - name: Run tests with coverage
+      run: mix test --cover
+    - name: Display coverage report
+      run: mix test --cover && mix coveralls.html
+      continue-on-error: true
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: cover/
+      continue-on-error: true

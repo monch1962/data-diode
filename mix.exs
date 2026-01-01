@@ -7,17 +7,21 @@ defmodule DataDiode.MixProject do
       version: "0.1.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
-      preferred_cli_env: [
-        release: :prod,
-        test: :test
-      ],
-      # 🚨 FINAL FIX: Changed conflicting :applications key back to standard :extra_applications.
       deps: deps(),
       releases: [
         data_diode: [
           include_erts: true,
           include_src: false
         ]
+      ]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        release: :prod,
+        test: :test
       ]
     ]
   end

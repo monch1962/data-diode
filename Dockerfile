@@ -69,3 +69,7 @@ CMD ["/app/bin/data_diode", "start"]
 
 # Expose the application port (e.g., 4000 for Phoenix)
 EXPOSE 8080
+# Add healthcheck to monitor application status
+# Checks if the data_diode process is running every 30 seconds
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD /app/bin/data_diode pid || exit 1

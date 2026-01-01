@@ -1,4 +1,16 @@
 defmodule DataDiode.S1.Encapsulator do
+  @moduledoc """
+  Encapsulates TCP packets with source metadata and forwards to Service 2.
+
+  Implements:
+  * Protocol whitelisting via Deep Packet Inspection (DPI)
+  * Continuous token bucket rate limiting
+  * Packet encapsulation with source IP/port
+  * CRC32 integrity checksums
+
+  All packets are sent via UDP to Service 2 (127.0.0.1:42001 by default).
+  """
+
   use GenServer
   require Logger
 
@@ -182,10 +194,15 @@ defmodule DataDiode.S1.Encapsulator do
 
   defp refill_tokens(state) do
     now = System.monotonic_time(:millisecond)
-    elapsed = now - state.last_refill
+    elapsed_ms = now - state.last_refill
 
-    if elapsed >= 1000 do
-      %{state | tokens: state.limit, last_refill: now}
+    # Calculate tokens to add based on elapsed time
+    # Rate is tokens per 1000ms (1 second)
+    tokens_to_add = trunc(elapsed_ms * state.limit / 1000)
+
+    if tokens_to_add > 0 do
+      new_tokens = min(state.limit, state.tokens + tokens_to_add)
+      %{state | tokens: new_tokens, last_refill: now}
     else
       state
     end

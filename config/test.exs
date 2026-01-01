@@ -7,4 +7,3 @@ config :data_diode,
   s2_port: 0
 
 config :logger, level: :debug
-config :data_diode, :s2_port, 0

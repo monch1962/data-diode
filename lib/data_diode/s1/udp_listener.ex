@@ -6,7 +6,8 @@ defmodule DataDiode.S1.UDPListener do
   use GenServer
   require Logger
 
-  @default_port 8081
+  alias DataDiode.NetworkHelpers
+  alias DataDiode.ConfigHelpers
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, Keyword.put_new(opts, :name, __MODULE__))
@@ -40,7 +41,7 @@ defmodule DataDiode.S1.UDPListener do
 
   @impl true
   def handle_info({:udp, _socket, ip, port, data}, state) do
-    src_ip = ip_to_string(ip)
+    src_ip = NetworkHelpers.ip_to_string(ip)
 
     # Forward to configured Encapsulator
     # Check if we should call the module function or use the pid/name
@@ -75,32 +76,16 @@ defmodule DataDiode.S1.UDPListener do
   end
 
   # Helpers
+  @spec listen_options() :: [:gen_udp.option()]
   defp listen_options do
-    base = [:binary, active: :once]
-
-    case Application.get_env(:data_diode, :s1_ip) do
-      nil ->
-        base
-
-      :any ->
-        base
-
-      ip_str ->
-        case :inet.parse_address(String.to_charlist(ip_str)) do
-          {:ok, addr} -> [{:ip, addr} | base]
-          _ -> base
-        end
-    end
+    NetworkHelpers.udp_listen_options(ConfigHelpers.s1_ip())
   end
 
+  @spec resolve_listen_port() :: {:ok, 0..65535 | nil} | {:error, {:invalid_port, any()}}
   defp resolve_listen_port do
-    case Application.get_env(:data_diode, :s1_udp_port) do
+    case ConfigHelpers.s1_udp_port() do
       nil -> {:ok, nil}
-      p when is_integer(p) and p >= 0 and p <= 65535 -> {:ok, p}
-      p -> {:error, {:invalid_port, p}}
+      port -> NetworkHelpers.validate_port(port)
     end
   end
-
-  defp ip_to_string(ip) when is_tuple(ip), do: List.to_string(:inet.ntoa(ip))
-  defp ip_to_string(ip), do: to_string(ip)
 end

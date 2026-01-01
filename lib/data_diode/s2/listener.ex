@@ -5,8 +5,8 @@ defmodule DataDiode.S2.Listener do
   use GenServer
   require Logger
 
-  alias DataDiode.S2.Decapsulator
-  @default_listen_port 42001
+  alias DataDiode.NetworkHelpers
+  alias DataDiode.ConfigHelpers
 
   @spec start_link(keyword()) :: :ignore | {:error, any()} | {:ok, pid()}
   def start_link(opts \\ []) do
@@ -16,14 +16,9 @@ defmodule DataDiode.S2.Listener do
   @doc """
   Resolves the UDP listen port for Service 2.
   """
-  @spec resolve_listen_port() :: {:ok, non_neg_integer()}
+  @spec resolve_listen_port() :: {:ok, non_neg_integer()} | {:error, {:invalid_port, any()}}
   def resolve_listen_port() do
-    port = Application.get_env(:data_diode, :s2_port, @default_listen_port)
-    if is_integer(port) and port >= 0 and port <= 65535 do
-      {:ok, port}
-    else
-      {:error, {:invalid_port, inspect(port)}}
-    end
+    NetworkHelpers.validate_port(ConfigHelpers.s2_port())
   end
 
   @impl true
@@ -88,18 +83,9 @@ defmodule DataDiode.S2.Listener do
 
   @doc false
   # Helper to define UDP socket options
+  @spec udp_options() :: [:gen_udp.option()]
   def udp_options() do
-    ip_str = Application.get_env(:data_diode, :s2_ip, "0.0.0.0")
-    case parse_ip(ip_str) do
-      {:ok, ip} -> [:binary, active: :once, ip: ip]
-      _ ->
-        Logger.warning("S2: Invalid LISTEN_IP_S2 #{ip_str}, falling back to all interfaces.")
-        [:binary, active: :once]
-    end
-  end
-
-  def parse_ip(ip_str) do
-    :inet.parse_address(String.to_charlist(ip_str))
+    NetworkHelpers.udp_listen_options(ConfigHelpers.s2_ip())
   end
 
   defp decapsulator do

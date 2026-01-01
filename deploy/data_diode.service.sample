@@ -25,9 +25,19 @@ ExecStop=/home/pi/data_diode/bin/data_diode stop
 Restart=always
 RestartSec=5
 
-# Health and security settings
-# PrivateTmp=true
-# ProtectSystem=full
+# Security hardening settings
+# Provides process isolation and protects system integrity
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+ProtectHome=true
+ReadWritePaths=/var/lib/data_diode
+ReadOnlyPaths=/
+
+# Additional security options
+# Prevents the process from gaining new privileges
+# Protects the system partition from being modified
+# Restricts access to user home directories
 
 [Install]
 WantedBy=multi-user.target

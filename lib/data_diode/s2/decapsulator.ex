@@ -4,6 +4,9 @@ defmodule DataDiode.S2.Decapsulator do
   # OpenTelemetry Tracing
   import OpenTelemetry.Tracer
 
+  alias DataDiode.ConfigHelpers
+  alias DataDiode.NetworkHelpers
+
   # --------------------------------------------------------------------------
   # API Function
   # --------------------------------------------------------------------------
@@ -57,10 +60,9 @@ defmodule DataDiode.S2.Decapsulator do
     # Verify integrity
     if :erlang.crc32(header_payload) == checksum do
       <<ip_binary::binary-4, port::integer-unsigned-big-16, payload::binary>> = header_payload
-      case binary_to_ip(ip_binary) do
-        {:ok, ip_string} -> {:ok, ip_string, port, payload}
-        {:error, reason} -> {:error, reason}
-      end
+      # NetworkHelpers.binary_to_ip always returns {:ok, _}, so we can match directly
+      {:ok, ip_string} = NetworkHelpers.binary_to_ip(ip_binary)
+      {:ok, ip_string, port, payload}
     else
       {:error, :integrity_check_failed}
     end
@@ -69,11 +71,6 @@ defmodule DataDiode.S2.Decapsulator do
   # Fallback for packets that are too short to contain the header + checksum.
   def parse_header(_packet) do
     {:error, :invalid_packet_size_or_missing_checksum}
-  end
-
-  # Converts a 4-byte binary into an IP address string.
-  defp binary_to_ip(<<a, b, c, d>>) do
-    {:ok, "#{a}.#{b}.#{c}.#{d}"}
   end
 
 
@@ -119,14 +116,6 @@ defmodule DataDiode.S2.Decapsulator do
     # even if clock jumps back (e.g. reboot to 1970) and unique_integer resets.
     unique = System.unique_integer([:positive, :monotonic])
     random_token = :crypto.strong_rand_bytes(4) |> Base.encode16()
-    Path.join(data_dir(), "data_#{:os.system_time(:millisecond)}_#{unique}_#{random_token}_#{port}.dat")
-  end
-
-  def data_dir do
-    case Application.fetch_env(:data_diode, :data_dir) do
-      {:ok, nil} -> "."
-      {:ok, dir} -> dir
-      :error -> "."
-    end
+    Path.join(ConfigHelpers.data_dir(), "data_#{:os.system_time(:millisecond)}_#{unique}_#{random_token}_#{port}.dat")
   end
 end

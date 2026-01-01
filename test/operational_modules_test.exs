@@ -99,8 +99,9 @@ defmodule DataDiode.OperationalModulesTest do
     # Hit {:ip, addr} branch
     DataDiode.S1.Listener.listen_options("127.0.0.1")
     DataDiode.S1.Listener.listen_options(:any)
-    DataDiode.S1.Listener.parse_ip("127.0.0.1")
-    DataDiode.S1.Listener.parse_ip(:invalid)
+    # IP parsing is now in NetworkHelpers
+    DataDiode.NetworkHelpers.parse_ip_address("127.0.0.1")
+    DataDiode.NetworkHelpers.parse_ip_address(:invalid)
 
     # --- 4. S2.Listener ---
     Application.put_env(:data_diode, :s2_port, 0)
@@ -118,7 +119,7 @@ defmodule DataDiode.OperationalModulesTest do
     
     # Hit explicit data_dir env
     Application.put_env(:data_diode, :data_dir, "/tmp/diode_test")
-    assert DiskCleaner.data_dir() == "/tmp/diode_test"
+    assert DataDiode.ConfigHelpers.data_dir() == "/tmp/diode_test"
     
     # Decapsulator: Normal write
     header_payload = <<127,0,0,1, 80, 0,0,0,4, "data">>

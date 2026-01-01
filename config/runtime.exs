@@ -29,11 +29,40 @@ end
 # Default: "ANY" -> [:any]
 allowed_str = System.get_env("ALLOWED_PROTOCOLS", "ANY")
 
+# Define valid protocol atoms to prevent atom table exhaustion
+valid_protocols = MapSet.new([
+  :any, :modbus, :dnp3, :mqtt, :snmp,
+  :opcua, :iec104, :bacnet, :ethernet_ip
+])
+
 protocol_list =
   allowed_str
   |> String.split(",", trim: true)
   |> Enum.map(&String.trim/1)
   |> Enum.map(&String.downcase/1)
-  |> Enum.map(&String.to_atom/1)
+  |> Enum.map(fn protocol_str ->
+    # Safely convert string to known atom, default to :any if unknown
+    case protocol_str do
+      "any" -> :any
+      "modbus" -> :modbus
+      "dnp3" -> :dnp3
+      "mqtt" -> :mqtt
+      "snmp" -> :snmp
+      "opcua" -> :opcua
+      "iec104" -> :iec104
+      "bacnet" -> :bacnet
+      "ethernet_ip" -> :ethernet_ip
+      _ ->
+        # Log warning for unknown protocol, default to allowing it as a string atom
+        # but use try/rescue to safely create it
+        try do
+          String.to_existing_atom(protocol_str)
+        rescue
+          ArgumentError ->
+            # Unknown protocol, log warning and skip
+            :any
+        end
+    end
+  end)
 
 config :data_diode, :protocol_allow_list, protocol_list

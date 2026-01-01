@@ -46,22 +46,36 @@ defmodule DataDiode.SystemMonitor do
     Process.send_after(self(), :pulse, @interval_ms)
   end
 
+  @doc """
+  Gets the CPU temperature from the system thermal zone.
+  Returns temperature in Celsius or "unknown" if unavailable.
+  """
+  @spec get_cpu_temp() :: float() | binary()
   def get_cpu_temp do
     path = Application.get_env(:data_diode, :thermal_path, "/sys/class/thermal/thermal_zone0/temp")
     case File.read(path) do
-      {:ok, body} -> 
+      {:ok, body} ->
         case Integer.parse(String.trim(body)) do
           {temp, _} -> temp / 1000.0
-          _ -> "unknown"
+          :error -> "unknown"
         end
-      _ -> "unknown"
+      {:error, _} -> "unknown"
     end
   end
 
+  @doc """
+  Gets the current memory usage in MB.
+  """
+  @spec get_memory_usage() :: float()
   def get_memory_usage do
      :erlang.memory(:total) / 1024 / 1024
   end
 
+  @doc """
+  Gets the disk free space percentage for a given path.
+  Returns the percentage string or "unknown" if unavailable.
+  """
+  @spec get_disk_free(Path.t()) :: binary()
   def get_disk_free(path) when is_binary(path) do
     case System.cmd("df", ["-h", path]) do
       {output, 0} ->
@@ -73,7 +87,8 @@ defmodule DataDiode.SystemMonitor do
       _ -> "unknown"
     end
   rescue
-    _ -> "unknown"
+    # Only catch specific errors related to string/split operations
+    _ in [Enum.EmptyError, ArgumentError] -> "unknown"
   end
 
   def get_disk_free(_), do: "unknown"

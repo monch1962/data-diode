@@ -5,7 +5,8 @@ defmodule DataDiode.S1.Listener do
   use GenServer
   require Logger
 
-  @default_port 8080
+  alias DataDiode.NetworkHelpers
+  alias DataDiode.ConfigHelpers
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
@@ -76,41 +77,19 @@ defmodule DataDiode.S1.Listener do
   end
 
   # Helpers
+  @doc """
+  Returns TCP listen options for the configured or provided IP address.
+  """
+  @spec listen_options(binary() | nil) :: [:gen_tcp.listen_option()]
   def listen_options(ip \\ nil) do
-    base = [:binary, :inet, {:reuseaddr, true}, {:active, false}]
-
-    case ip || Application.get_env(:data_diode, :s1_ip) do
-      nil ->
-        base
-
-      :any ->
-        base
-
-      ip_str ->
-        case parse_ip(ip_str) do
-          :any -> base
-          addr -> [{:ip, addr} | base]
-        end
-    end
+    NetworkHelpers.tcp_listen_options(ip || ConfigHelpers.s1_ip())
   end
 
-  def parse_ip(ip) when is_binary(ip) do
-    case :inet.parse_address(String.to_charlist(ip)) do
-      {:ok, addr} ->
-        addr
-
-      _ ->
-        Logger.warning("S1: Invalid LISTEN_IP #{ip}, using all interfaces.")
-        :any
-    end
-  end
-
-  def parse_ip(_), do: :any
-
+  @doc """
+  Resolves and validates the configured listen port.
+  """
+  @spec resolve_listen_port() :: {:ok, 0..65535} | {:error, {:invalid_port, any()}}
   def resolve_listen_port do
-    case Application.get_env(:data_diode, :s1_port, @default_port) do
-      p when is_integer(p) and p >= 0 and p <= 65535 -> {:ok, p}
-      p -> {:error, {:invalid_port, p}}
-    end
+    NetworkHelpers.validate_port(ConfigHelpers.s1_port())
   end
 end

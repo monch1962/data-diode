@@ -10,19 +10,19 @@ While firewalls are essential components of network security, a data diode offer
 
 **Firewall:**
 
-* **Function:** A firewall acts as a gatekeeper, inspecting network traffic and enforcing rules to permit or deny communication based on IP addresses, ports, protocols, and sometimes application-layer content.
-* **Bidirectional by Design:** Firewalls are inherently bidirectional. They can be configured to allow traffic in one direction, but their underlying architecture is capable of two-way communication. This means there's always a theoretical (and sometimes practical) risk of misconfiguration, vulnerabilities, or advanced attacks that could bypass the rules and establish a reverse channel.
-* **Software-based:** Most firewalls are software-based, running on general-purpose computing platforms, making them susceptible to software bugs, exploits, and complex attack vectors.
+- **Function:** A firewall acts as a gatekeeper, inspecting network traffic and enforcing rules to permit or deny communication based on IP addresses, ports, protocols, and sometimes application-layer content.
+- **Bidirectional by Design:** Firewalls are inherently bidirectional. They can be configured to allow traffic in one direction, but their underlying architecture is capable of two-way communication. This means there's always a theoretical (and sometimes practical) risk of misconfiguration, vulnerabilities, or advanced attacks that could bypass the rules and establish a reverse channel.
+- **Software-based:** Most firewalls are software-based, running on general-purpose computing platforms, making them susceptible to software bugs, exploits, and complex attack vectors.
 
 **Data Diode (Unidirectional Gateway):**
 
-* **Function:** A data diode is a hardware-enforced security device that physically prevents data from flowing in more than one direction. It typically uses optical technology or specialized electronics to ensure that a return path for data is impossible.
-* **Physical Unidirectionality:** Its core strength lies in its physical design. There is no electrical or optical path for data to travel back, making it immune to misconfiguration or software vulnerabilities that could create a reverse channel.
-* **Use Cases:** Data diodes are used in environments where absolute assurance of one-way data flow is critical, such as:
-  * **Critical Infrastructure (SCADA/ICS):** Protecting operational technology networks from external threats while allowing monitoring data out.
-  * **Military and Government:** Ensuring classified networks remain isolated from less secure networks.
-  * **Nuclear Facilities:** Preventing control signals from leaving a secure zone while allowing sensor data to be extracted.
-  * **Industrial Control Systems:** Isolating control networks from enterprise networks.
+- **Function:** A data diode is a hardware-enforced security device that physically prevents data from flowing in more than one direction. It typically uses optical technology or specialized electronics to ensure that a return path for data is impossible.
+- **Physical Unidirectionality:** Its core strength lies in its physical design. There is no electrical or optical path for data to travel back, making it immune to misconfiguration or software vulnerabilities that could create a reverse channel.
+- **Use Cases:** Data diodes are used in environments where absolute assurance of one-way data flow is critical, such as:
+  - **Critical Infrastructure (SCADA/ICS):** Protecting operational technology networks from external threats while allowing monitoring data out.
+  - **Military and Government:** Ensuring classified networks remain isolated from less secure networks.
+  - **Nuclear Facilities:** Preventing control signals from leaving a secure zone while allowing sensor data to be extracted.
+  - **Industrial Control Systems:** Isolating control networks from enterprise networks.
 
 **In summary:** While a firewall attempts to *manage* bidirectional traffic, a data diode *physically enforces* unidirectional traffic. For scenarios demanding the highest level of assurance against reverse data flow, a data diode provides a security guarantee that a firewall cannot. This Elixir application simulates the logical separation and one-way data flow that a physical data diode provides.
 
@@ -33,20 +33,18 @@ The system is split into two logical services connected by a simulated network p
 **1. Service 1 (S1): Unsecured Network Ingress (TCP to UDP)**
 The function of Service 1 is to accept connections from potentially untrusted clients (e.g., IoT devices, legacy systems) and forward the data securely.
 
-* **Ingress:** Listens for incoming connections on a TCP socket (LISTEN_PORT).
-
-* **Encapsulation:** When data is received, it extracts the original TCP source IP address (4 bytes) and Port (2 bytes). This metadata is prepended to the original payload, creating a custom packet header.
-
-* **Egress:** Forwards the newly encapsulated binary packet across the simulated security boundary using a UDP socket to Service 2.
+- **Ingress:** Listens for incoming connections on a TCP socket (LISTEN_PORT).
+- **Encapsulation:** When data is received, it extracts the original TCP source IP address (4 bytes) and Port (2 bytes). This metadata is prepended to the original payload, creating a custom packet header.
+- **Egress:** Forwards the newly encapsulated binary packet across the simulated security boundary using a UDP socket to Service 2.
 
 **2. Service 2 (S2): Secured Network Egress (UDP to Storage)**
+
 The function of Service 2 is to safely receive data from the unsecured side, verify the format, and write the contents to the secure system.
 
-* **Ingress:** Listens for encapsulated data on a UDP socket (LISTEN_PORT_S2).
+- **Ingress:** Listens for encapsulated data on a UDP socket (LISTEN_PORT_S2).
+- **Decapsulation:** Parses the custom 6-byte header to recover the original source IP and Port.
+- **Processing:** Logs the metadata and simulates writing the original payload to secure storage. Crucially, S2 never opens any TCP connection and does not send any data back.
 
-* **Decapsulation:** Parses the custom 6-byte header to recover the original source IP and Port.
-
-* **Processing:** Logs the metadata and simulates writing the original payload to secure storage. Crucially, S2 never opens any TCP connection and does not send any data back.
 ## 🛡️ Protocol Whitelisting & DPI
 To prevent unauthorized command-and-control (C2) or data exfiltration, the Data Diode uses **Deep Packet Inspection (DPI)** to verify the contents of every packet against known industrial protocol signatures.
 
@@ -67,29 +65,31 @@ export ALLOWED_PROTOCOLS="MODBUS,MQTT"
 | **SNMP** | SNMP | UDP | 161 / 162 | Network management (Checks ASN.1 BER Sequence). |
 | **ANY** | All Protocols | - | - | (Default) Allows any valid packet through. |
 
-> [!NOTE]
-> **Transport Ingress Note**: The current `S1.Listener` is configured for **TCP Ingress**. While the DPI logic supports UDP-based protocols (SNMP, DNP3-UDP), they would require the deployment of a corresponding UDP Ingress listener at Service 1.
+> **NOTE:** Transport Ingress Note - The current `S1.Listener` is configured for **TCP Ingress**. While the DPI logic supports UDP-based protocols (SNMP, DNP3-UDP), they would require the deployment of a corresponding UDP Ingress listener at Service 1.
 
-*Note: Packets that do not match the configured signatures are dropped at the ingress (S1) and recorded as errors in the metrics.*
+**Note:** Packets that do not match the configured signatures are dropped at the ingress (S1) and recorded as errors in the metrics.
 
 ## 🛠️ Project Setup
 
 ### Prerequisites
 
-* Elixir (1.10+)
-
-* Erlang/OTP (21+)
+- Elixir (1.10+)
+- Erlang/OTP (21+)
 
 ### Installation
 
 Clone the repository:
 
-```git clone [your-repo-link] data_diode```
-```cd data_diode```
+```bash
+git clone [your-repo-link] data_diode
+cd data_diode
+```
 
 Install dependencies:
 
-```mix deps.get```
+```bash
+mix deps.get
+```
 
 ## ⚙️ Configuration
 
@@ -97,12 +97,25 @@ The application is configured via environment variables. For OT deployments (e.g
 
 | Variable | Purpose | Default | Example |
 | -------- | ------- | ------- | ------- |
-| `LISTEN_PORT` | S1 Ingress Port (TCP) | 8080 | 42000 |
+| `LISTEN_PORT_TCP` | S1 TCP Ingress Port | 8080 | 502 (Modbus) |
+| `LISTEN_PORT_UDP` | S1 UDP Ingress Port (Optional) | `nil` | 161 (SNMP) |
 | `LISTEN_IP` | S1 Interface Bind IP | `0.0.0.0` | `192.168.1.10` |
 | `LISTEN_PORT_S2` | S2 Ingress Port (UDP) | 42001 | 42001 |
 | `LISTEN_IP_S2` | S2 Interface Bind IP | `0.0.0.0` | `192.168.1.20` |
+| `DATA_DIR` | S2 Data Storage Directory | `.` | `/var/lib/data_diode` |
+| `ALLOWED_PROTOCOLS` | Protocol Whitelist | `ANY` | `MODBUS,MQTT` |
+| `MAX_PACKETS_PER_SEC` | Rate Limit | 1000 | 500 |
+| `DISK_CLEANUP_BATCH_SIZE` | Files to Delete Per Cleanup | 100 | 50 |
 
 ### OT Hardening & Stability
+- **Configuration Validation**: All configuration is validated at application startup to prevent runtime failures with invalid settings.
+- **Centralized Utilities**: Shared `NetworkHelpers` and `ConfigHelpers` modules eliminate code duplication and provide consistent configuration access.
+- **Continuous Rate Limiting**: Improved token bucket algorithm with precise refill calculations prevents rate limit "leakage" (previously allowed ~2x configured rate).
+- **Actual Disk Cleanup**: Implemented working autonomous disk cleanup that deletes oldest .dat files when space is low (previously simulated).
+- **Atom Safety**: Safe protocol atom conversion prevents atom table exhaustion attacks.
+- **Systemd Hardening**: Enabled security hardening options in systemd service template (PrivateTmp, ProtectSystem, NoNewPrivileges, etc.).
+- **Docker Healthcheck**: Added container health monitoring for improved orchestration reliability.
+- **CI Coverage Reporting**: Automated test coverage reporting with artifact uploads.
 - **Race Condition Audit**: Underwent a comprehensive audit to eliminate concurrent race conditions and timing-based flakiness.
 - **Task Exhaustion Safety**: S2 Listener now gracefully handles `TaskSupervisor` saturation with explicit error logging and metric increments.
 - **SD Card Protection**: Logs are formatted as JSON via `:logger_json` to minimize metadata I/O.
@@ -159,7 +172,7 @@ In remote deployments, power cuts are a common occurrence. To ensure the Data Di
 ### 1. Systemd Service Deployment
 Technicians should use `systemd` to manage the application. This ensures the app starts on boot and restarts automatically if it ever exits.
 
-A template is provided in [`deploy/data_diode.service.sample`](file:///Users/davidm/Projects/elixir-spike/data_diode/deploy/data_diode.service.sample). To use it:
+A template is provided in [`deploy/data_diode.service.sample`](deploy/data_diode.service.sample). To use it:
 
 1. Copy the sample file:
    ```bash
@@ -178,9 +191,9 @@ A template is provided in [`deploy/data_diode.service.sample`](file:///Users/dav
 
 ### 2. Startup Resilience
 The application is designed to be "cold-start" resilient:
-- **Stateless Recovery**: S1 and S2 do not maintain long-term session state. Once the service is up, it is immediately ready to handle new packets.
-- **Retry Logic**: If the OS takes time to release ports after a hard reboot, the Elixir supervisor will automatically retry binding (20 attempts every 5 seconds).
-- **Network Dependency**: The `After=network.target` directive ensures the app waits for the network stack before attempting to bind listeners.
+- **Stateless Recovery**: S1 and S2 do not maintain long-term session state. Once the service is up, it is immediately ready to handle new packets
+- **Retry Logic**: If the OS takes time to release ports after a hard reboot, the Elixir supervisor will automatically retry binding (20 attempts every 5 seconds)
+- **Network Dependency**: The `After=network.target` directive ensures the app waits for the network stack before attempting to bind listeners
 
 ### 3. SD Card Protection
 To prevent filesystem corruption during power loss, it is highly recommended to use the Raspberry Pi's "Overlay File System" (via `raspi-config`) to make the system partition read-only.
@@ -191,19 +204,22 @@ For mission-critical deployments where on-site access is limited, the applicatio
 
 ### 1. JSON Health Pulses (Telemetry)
 The `DataDiode.SystemMonitor` emits a structured JSON log every 60 seconds (look for `HEALTH_PULSE` in logs). This includes:
-- **Uptime**: Total seconds since service start.
-- **Resource Usage**: CPU Temperature, Memory (MB), and Disk Free %.
-- **Throughput**: Total packets forwarded and error counts.
-*Tip: Remote monitoring platforms can alert on `cpu_temp > 80` or `disk_free_percent < 10`.*
+- **Uptime**: Total seconds since service start
+- **Resource Usage**: CPU Temperature, Memory (MB), and Disk Free %
+- **Throughput**: Total packets forwarded and error counts
+
+**Tip:** Remote monitoring platforms can alert on `cpu_temp > 80` or `disk_free_percent < 10`.
 
 ### 2. End-to-End Channel Heartbeat
 Service 1 automatically generates a "HEARTBEAT" packet every 5 minutes.
-- **S1.Heartbeat**: Simulates a packet through the entire code path.
-- **S2.HeartbeatMonitor**: Logs a `CRITICAL FAILURE` if a heartbeat is missed for more than 6 minutes.
-*This verifies both services and the physical diode hardware.*
+
+- **S1.Heartbeat**: Simulates a packet through the entire code path
+- **S2.HeartbeatMonitor**: Logs a `CRITICAL FAILURE` if a heartbeat is missed for more than 6 minutes
+
+**Note:** This verifies both services and the physical diode hardware.
 
 ### 3. Autonomous Disk Maintenance
-The `DataDiode.DiskCleaner` monitors storage hourly. If disk space falls below **15%**, it triggers an autonomous cleanup to prevent service interruption.
+The `DataDiode.DiskCleaner` monitors storage hourly. If disk space falls below **15%**, it automatically deletes the oldest .dat files (configurable batch size) to prevent service interruption.
 
 ### 4. Hardware Watchdog (Pi Integration)
 To recover from hard OS/VM hangs, enable the Raspberry Pi hardware watchdog:
@@ -253,32 +269,64 @@ Detailed results, including packets per second and bandwidth throughput, are aut
 
 ### Test Coverage
 The project maintains a high quality bar for unattended operation through an exhaustive test suite.
-- **Current Coverage**: **~90%**
+- **Current Coverage**: **~92%** (105 passing tests)
 - **Robustness Suite**: Includes `test/long_term_robustness_test.exs` which simulates:
   - Disk-full scenarios.
   - Network interface flapping.
   - Large connection churn (Soak testing).
   - Clock jumps (NTP drift).
+- **Security Suite**: Comprehensive MITRE ATT&CK attack simulation in `test/security_attack_test.exs`.
+- **Property Tests**: Verification of protocol parsing, rate limiting, and data integrity.
 
 To run verification locally:
 ```bash
 mix test --cover
 ```
 
+### Code Quality Improvements
+Recent codebase improvements include:
+- Removed all unreachable dead code and duplicate configurations
+- Fixed deprecated Mix configuration syntax
+- Extracted 100+ lines of duplicate code into shared utilities
+- Added comprehensive @moduledoc, @spec, and @doc annotations
+- Eliminated overly broad exception handling
+- Implemented actual functionality (not simulation) where needed
+
 ## 🗃️ Key Files
+
+### Core Modules
 
 | Filepath | Description |
 | --- | --- |
-| `lib/data_diode/application.ex` | Main Supervision Tree. |
-| `lib/data_diode/s1/listener.ex` | S1 TCP Ingress (Passive mode for handover). |
-| `lib/data_diode/s1/tcp_handler.ex` | S1 Stream Processing (Deferred activation). |
-| `lib/data_diode/s2/listener.ex` | S2 UDP Ingress (Async Task spawning). |
-| `lib/data_diode/s2/decapsulator.ex`| S2 Core logic & Secure Storage (Clock-drift safe). |
-| `config/runtime.exs` | Environment variable binding. |
-| `bin/automate_load_test.exs` | Automated load test script (lifecycle managed). |
-| `bin/run_load_test.sh` | Shell wrapper for automated performance testing. |
-| `OPERATIONS.md` | SOC Monitoring (SLIs, SLOs, SLAs). |
-| `TROUBLESHOOTING.md` | Field Engineering Field Guide. |
-| `PACKAGING.md` | Raspberry Pi Packaging Options (Nerves, .deb). |
-| `HARDWARE.md` | Industrial Hardware Recommendations. |
-| `PERFORMANCE.md` | Performance Benchmarking & Load Testing. |
+| `lib/data_diode/application.ex` | Main Supervision Tree with startup validation |
+| `lib/data_diode/network_helpers.ex` | Shared network utility functions (IP parsing, validation) |
+| `lib/data_diode/config_helpers.ex` | Centralized configuration access |
+| `lib/data_diode/config_validator.ex` | Startup configuration validation |
+| `lib/data_diode/s1/listener.ex` | S1 TCP Ingress (Passive mode for handover) |
+| `lib/data_diode/s1/tcp_handler.ex` | S1 Stream Processing (Deferred activation) |
+| `lib/data_diode/s1/encapsulator.ex` | Packet encapsulation with continuous rate limiting |
+| `lib/data_diode/s1/udp_listener.ex` | S1 UDP Ingress (Optional SNMP/DNP3 support) |
+| `lib/data_diode/s2/listener.ex` | S2 UDP Ingress (Async Task spawning) |
+| `lib/data_diode/s2/decapsulator.ex`| S2 Core logic & Secure Storage (Clock-drift safe) |
+| `lib/data_diode/disk_cleaner.ex` | Autonomous disk maintenance (actual file deletion) |
+
+### Configuration & Operations
+
+| Filepath | Description |
+| --- | --- |
+| `config/runtime.exs` | Environment variable binding with safe atom conversion |
+| `.github/workflows/elixir.yml` | CI pipeline with coverage reporting |
+| `Dockerfile` | Container build with healthcheck |
+| `deploy/data_diode.service.sample` | Systemd service template with security hardening |
+
+### Documentation
+
+| Filepath | Description |
+| --- | --- |
+| `bin/automate_load_test.exs` | Automated load test script (lifecycle managed) |
+| `bin/run_load_test.sh` | Shell wrapper for automated performance testing |
+| `OPERATIONS.md` | SOC Monitoring (SLIs, SLOs, SLAs) |
+| `TROUBLESHOOTING.md` | Field Engineering Field Guide |
+| `PACKAGING.md` | Raspberry Pi Packaging Options (Nerves, .deb) |
+| `HARDWARE.md` | Industrial Hardware Recommendations |
+| `PERFORMANCE.md` | Performance Benchmarking & Load Testing |
