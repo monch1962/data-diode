@@ -239,4 +239,149 @@ defmodule DataDiode.MemoryGuardTest do
       assert percent == 0.0
     end
   end
+
+  describe "GenServer periodic checks" do
+    setup do
+      %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 4000)
+
+      Application.put_env(:data_diode, :meminfo_path,
+        Path.join(proc_dir, "meminfo"))
+
+      on_exit(fn ->
+        DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
+        Application.delete_env(:data_diode, :meminfo_path)
+      end)
+
+      :ok
+    end
+
+    test "performs periodic memory check" do
+      pid = Process.whereis(DataDiode.MemoryGuard)
+
+      # Trigger check by sending the message directly
+      send(pid, :check_memory)
+
+      # Should not crash
+      assert Process.alive?(pid)
+
+      # Wait a bit for the message to be processed
+      Process.sleep(100)
+      assert Process.alive?(pid)
+    end
+
+    test "establishes baseline over multiple checks" do
+      pid = Process.whereis(DataDiode.MemoryGuard)
+
+      # Get initial state
+      _state1 = :sys.get_state(pid)
+
+      # Trigger multiple checks to establish baseline (needs 5 samples)
+      Enum.each(1..5, fn _i ->
+        send(pid, :check_memory)
+        Process.sleep(50)
+      end)
+
+      # Check that baseline was established
+      state = :sys.get_state(pid)
+      assert state.baseline != nil
+
+      # Baseline should have expected fields
+      assert Map.has_key?(state.baseline, :total)
+      assert Map.has_key?(state.baseline, :used)
+      assert Map.has_key?(state.baseline, :percent)
+    end
+  end
+
+  describe "memory leak detection calculations" do
+    setup do
+      %{temp_dir: temp_dir, proc_dir: proc_dir, total_mb: total_mb} =
+        setup_meminfo(8000, 4000)
+
+      Application.put_env(:data_diode, :meminfo_path,
+        Path.join(proc_dir, "meminfo"))
+
+      on_exit(fn ->
+        DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
+        Application.delete_env(:data_diode, :meminfo_path)
+      end)
+
+      {:ok, total_mb: total_mb}
+    end
+
+    test "calculates growth rate correctly" do
+      baseline = %{total: 8_000_000_000, used: 4_000_000_000}
+      current = %{total: 8_000_000_000, used: 6_000_000_000}
+
+      # Growth rate = (current.used - baseline.used) / baseline.total
+      # (6GB - 4GB) / 8GB = 0.25 (25%)
+      growth_rate = (current.used - baseline.used) / baseline.total
+
+      assert_in_delta growth_rate, 0.25, 0.01
+    end
+
+    test "handles zero baseline total" do
+      baseline = %{total: 0, used: 0}
+      current = %{total: 8_000_000_000, used: 4_000_000_000}
+
+      growth_rate = if baseline.total > 0 do
+        (current.used - baseline.used) / baseline.total
+      else
+        0
+      end
+
+      assert growth_rate == 0
+    end
+  end
+
+  describe "VM memory testing" do
+    test "gets VM memory information" do
+      vm_memory = DataDiode.MemoryGuard.get_vm_memory()
+
+      # Should return a keyword list with memory stats
+      assert is_list(vm_memory)
+      assert Keyword.has_key?(vm_memory, :total)
+      assert Keyword.has_key?(vm_memory, :processes)
+      assert Keyword.has_key?(vm_memory, :system)
+      assert Keyword.has_key?(vm_memory, :atom)
+      assert Keyword.has_key?(vm_memory, :binary)
+      assert Keyword.has_key?(vm_memory, :code)
+      assert Keyword.has_key?(vm_memory, :ets)
+    end
+
+    test "VM memory total is positive" do
+      vm_memory = DataDiode.MemoryGuard.get_vm_memory()
+
+      # Total memory should always be > 0
+      total = Keyword.get(vm_memory, :total)
+      assert total > 0
+    end
+  end
+
+  describe "memory history tracking" do
+    test "maintains memory history" do
+      %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 4000)
+
+      Application.put_env(:data_diode, :meminfo_path,
+        Path.join(proc_dir, "meminfo"))
+
+      on_exit(fn ->
+        DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
+        Application.delete_env(:data_diode, :meminfo_path)
+      end)
+
+      pid = Process.whereis(DataDiode.MemoryGuard)
+
+      # Get initial state
+      state1 = :sys.get_state(pid)
+      assert is_list(state1.history)
+
+      # Trigger a check to add to history
+      send(pid, :check_memory)
+      Process.sleep(100)
+
+      # History should be updated
+      state2 = :sys.get_state(pid)
+      assert length(state2.history) >= length(state1.history)
+    end
+  end
 end

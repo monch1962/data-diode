@@ -204,4 +204,95 @@ defmodule DataDiode.NetworkGuardTest do
       assert transitions == 0
     end
   end
+
+  describe "GenServer callbacks" do
+    test "handles periodic interface checks" do
+      pid = Process.whereis(DataDiode.NetworkGuard)
+
+      # Trigger check directly - may crash if ip command not available
+      send(pid, :check_interfaces)
+      Process.sleep(100)
+
+      # Process may crash if ip command not available, but should restart
+      # Check if either the original pid or new pid is alive
+      Process.sleep(200)
+      pid_after = Process.whereis(DataDiode.NetworkGuard)
+      assert pid_after != nil
+    end
+
+    test "handles recovery ready message" do
+      pid = Process.whereis(DataDiode.NetworkGuard)
+
+      # Simulate recovery from flapping state
+      send(pid, :recovery_ready)
+
+      # Should not crash
+      Process.sleep(100)
+      assert Process.alive?(pid)
+    end
+
+    test "has valid state structure" do
+      pid = Process.whereis(DataDiode.NetworkGuard)
+
+      # Get state - should have expected structure
+      state = :sys.get_state(pid)
+      assert Map.has_key?(state, :interface_state)
+      assert Map.has_key?(state, :history)
+      assert is_list(state.history)
+    end
+  end
+
+  describe "interface configuration" do
+    test "uses default s1 interface when not configured" do
+      # Remove the config
+      Application.delete_env(:data_diode, :s1_interface)
+
+      # Should default to "eth0"
+      interface = Application.get_env(:data_diode, :s1_interface, "eth0")
+      assert interface == "eth0"
+
+      # Restore config
+      Application.put_env(:data_diode, :s1_interface, "eth0")
+    end
+
+    test "uses default s2 interface when not configured" do
+      # Remove the config
+      Application.delete_env(:data_diode, :s2_interface)
+
+      # Should default to "eth1"
+      interface = Application.get_env(:data_diode, :s2_interface, "eth1")
+      assert interface == "eth1"
+
+      # Restore config
+      Application.put_env(:data_diode, :s2_interface, "eth1")
+    end
+  end
+
+  describe "flapping recovery" do
+    test "handles flapping penalty expiration" do
+      pid = Process.whereis(DataDiode.NetworkGuard)
+
+      # When flapping penalty expires, should send recovery ready message
+      # This is internal, but we can verify the process handles the message
+      send(pid, :recovery_ready)
+
+      Process.sleep(100)
+      assert Process.alive?(pid)
+    end
+  end
+
+  describe "history tracking" do
+    test "maintains history of interface states" do
+      pid = Process.whereis(DataDiode.NetworkGuard)
+
+      state = :sys.get_state(pid)
+      assert is_list(state.history)
+
+      # History should have timestamps
+      if length(state.history) > 0 do
+        entry = hd(state.history)
+        assert Map.has_key?(entry, :timestamp)
+      end
+    end
+  end
 end

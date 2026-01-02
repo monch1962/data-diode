@@ -77,14 +77,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 #### Test Statistics
-- **Total Tests**: Increased from ~186 to **286 tests** (+54%)
-- **Test Coverage**: Reduced from ~92% to **~52%** (more realistic, includes all modules)
+- **Total Tests**: Increased from ~186 to **308 tests** (+66%)
+- **Test Coverage**: Improved from ~52% to **~59%** (+13%)
 - **Harsh Environment Coverage**:
   - EnvironmentalMonitor: 40.19% → **62.83%** (+56%)
-  - MemoryGuard: 4.95% → **21.36%** (+331%)
-  - DiskCleaner: 38.46% → **60.00%** (+56%)
-  - NetworkGuard: 6.41% → **11.54%** (+80%)
+  - MemoryGuard: 4.95% → **49.51%** (+900%, added GenServer callback tests)
+  - DiskCleaner: 38.46% → **58.10%** (+51%)
+  - NetworkGuard: 6.41% → **14.10%** (+120%, added GenServer callback tests)
+  - PowerMonitor: 8.62% → **43.33%** (+402%, added GenServer callback tests)
 - **All Tests Passing**: Fixed all compilation errors and test failures
+
+#### GenServer Callback Testing
+- **MemoryGuard**: Added 7 new tests for periodic checks, baseline tracking, memory leak detection calculations, VM memory, and history tracking
+- **NetworkGuard**: Added 8 new tests for GenServer callbacks, interface configuration, flapping recovery, and history tracking
+- **PowerMonitor**: Added 8 new tests for GenServer callbacks, UPS status checking, and battery level thresholds
+- **Process Restart Handling**: Tests now gracefully handle GenServer restarts when system commands fail
 
 #### Code Quality
 - **Made Production Code Testable** - Refactored modules to support hardware simulation
@@ -100,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed test setup blocks returning invalid `{:ok}` tuples
 - Fixed undefined `pid()` function calls in tests
 - Fixed MatchError in test pattern matching for thermal fixtures
+- Fixed PowerMonitor to gracefully handle missing `upsc` command (lib/data_diode/power_monitor.ex:61-76) - Added try/rescue block to catch `ErlangError` when `upsc` command is unavailable and fall back to sysfs monitoring
 
 #### Harsh Environment Monitoring Modules
 

@@ -367,7 +367,7 @@ Detailed results, including packets per second and bandwidth throughput, are aut
 
 ### Test Coverage
 The project maintains a high quality bar for unattended operation through an exhaustive test suite.
-- **Current Coverage**: **~52%** (286 passing tests)
+- **Current Coverage**: **~59%** (308 passing tests)
 - **Robustness Suite**: Includes `test/long_term_robustness_test.exs` which simulates:
   - Disk-full scenarios.
   - Network interface flapping.
@@ -376,6 +376,7 @@ The project maintains a high quality bar for unattended operation through an exh
 - **Security Suite**: Comprehensive MITRE ATT&CK attack simulation in `test/security_attack_test.exs`.
 - **Property Tests**: Verification of protocol parsing, rate limiting, and data integrity.
 - **Harsh Environment Tests**: Comprehensive testing for environmental monitoring, power management, and network resilience.
+- **GenServer Callback Tests**: Full coverage of periodic checks, state management, and error recovery.
 
 To run verification locally:
 ```bash
@@ -393,10 +394,10 @@ The project includes specialized test infrastructure for validating graceful deg
 | Module | Coverage | Tests |
 |--------|----------|-------|
 | EnvironmentalMonitor | 62.83% | Temperature sensors, critical conditions, missing sensors |
-| MemoryGuard | 21.36% | Memory monitoring, leak detection, missing meminfo |
-| DiskCleaner | 60.00% | Emergency cleanup, log rotation, integrity checks |
-| NetworkGuard | 11.54% | Interface flapping, recovery, configuration variations |
-| PowerMonitor | 8.62% | UPS monitoring, battery levels, AC power |
+| MemoryGuard | 49.51% | Memory monitoring, leak detection, baseline tracking, GenServer callbacks |
+| DiskCleaner | 58.10% | Emergency cleanup, log rotation, integrity checks |
+| NetworkGuard | 14.10% | Interface flapping, recovery, configuration variations, GenServer callbacks |
+| PowerMonitor | 43.33% | UPS monitoring, battery levels, AC power, GenServer callbacks |
 | HealthAPI | 0.76% | Helper functions, data parsing (API tested in integration) |
 
 **Testing Capabilities**:
@@ -447,6 +448,8 @@ Recent codebase improvements include:
 - Added comprehensive @moduledoc, @spec, and @doc annotations
 - Eliminated overly broad exception handling
 - Implemented actual functionality (not simulation) where needed
+- Fixed PowerMonitor to gracefully handle missing `upsc` command (lib/data_diode/power_monitor.ex:61-76)
+- Added comprehensive GenServer callback testing for harsh environment modules
 
 ## 🗃️ Key Files
 

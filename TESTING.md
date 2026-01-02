@@ -6,12 +6,13 @@ This document provides detailed information about the testing approach, infrastr
 
 The Data Diode project uses a comprehensive testing strategy to ensure reliability in harsh environments. The test suite includes:
 
-- **286 tests** covering all major functionality
-- **~52% code coverage** across all modules
+- **308 tests** covering all major functionality
+- **~59% code coverage** across all modules
 - **Hardware simulation** for testing without physical devices
 - **Graceful degradation testing** for missing/broken hardware
 - **Security testing** via MITRE ATT&CK simulations
 - **Long-term robustness testing** for extended operation
+- **GenServer callback testing** for periodic checks and state management
 
 ## Test Infrastructure
 
@@ -62,10 +63,10 @@ Tests are organized by functionality:
 | Test File | Purpose | Coverage |
 |-----------|---------|----------|
 | `test/environmental_monitor_test.exs` | Temperature & sensor monitoring | 62.83% |
-| `test/memory_guard_test.exs` | Memory leak detection | 21.36% |
-| `test/network_guard_test.exs` | Network interface resilience | 11.54% |
-| `test/power_monitor_test.exs` | UPS integration | 8.62% |
-| `test/disk_cleaner_enhanced_test.exs` | Storage management | 60.00% |
+| `test/memory_guard_test.exs` | Memory leak detection, baseline tracking | 49.51% |
+| `test/network_guard_test.exs` | Network interface resilience | 14.10% |
+| `test/power_monitor_test.exs` | UPS integration, battery levels | 43.33% |
+| `test/disk_cleaner_enhanced_test.exs` | Storage management | 58.10% |
 | `test/health_api_mock_test.exs` | Health API helpers | 0.76% |
 | `test/security_attack_test.exs` | MITRE ATT&CK simulations | High |
 | `test/long_term_robustness_test.exs` | Extended operation testing | High |

@@ -55,16 +55,23 @@ defmodule DataDiode.PowerMonitor do
   # UPS checking methods
 
   defp check_nut_ups do
-    # Try to query upsdc (UPS client from NUT)
+    # Try to query upsc (UPS client from NUT)
     ups_name = Application.get_env(:data_diode, :nut_ups_name, "ups@localhost")
 
-    case System.cmd("upsc", [ups_name]) do
-      {output, 0} ->
-        parse_ups_output(output)
+    try do
+      case System.cmd("upsc", [ups_name]) do
+        {output, 0} ->
+          parse_ups_output(output)
 
-      {_output, _exit_code} ->
-        # NUT not available, try sysfs
-        Logger.warning("PowerMonitor: NUT not available, falling back to sysfs")
+        {_output, _exit_code} ->
+          # NUT not available, try sysfs
+          Logger.warning("PowerMonitor: NUT not available, falling back to sysfs")
+          check_sysfs_power()
+      end
+    rescue
+      # If upsc command doesn't exist, fall back to sysfs
+      _e in ErlangError ->
+        Logger.warning("PowerMonitor: upsc command not available, falling back to sysfs")
         check_sysfs_power()
     end
   end
