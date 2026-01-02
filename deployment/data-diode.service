@@ -1,0 +1,94 @@
+[Unit]
+Description=Elixir Data Diode for Harsh Environments
+Documentation=https://github.com/yourusername/data_diode
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/data-diode/config.exs
+
+# Start on boot, restart on failure with limits
+StartLimitInterval=300
+StartLimitBurst=5
+
+[Service]
+# User and group
+User=diode
+Group=diode
+
+# Working directory
+WorkingDirectory=/opt/data-diode
+
+# Auto-restart configuration
+Restart=always
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+# Environment
+Environment="LANG=en_US.UTF-8"
+Environment="LC_ALL=en_US.UTF-8"
+Environment="MIX_ENV=prod"
+Environment="RELEASE_TMP=/tmp"
+
+# Resource limits for harsh environments
+# Memory limit: 512MB (prevent memory issues)
+MemoryMax=512M
+# CPU quota: 80% (prevent thermal issues)
+CPUQuota=80%
+# Task limit: 200 (prevent resource exhaustion)
+TasksMax=200
+# File descriptor limit
+LimitNOFILE=65536
+
+# ExecStart
+ExecStart=/opt/data-diode/_build/prod/rel/data_diode/bin/data_diode start
+
+# ExecStop (graceful shutdown)
+ExecStop=/opt/data-diode/_build/prod/rel/data_diode/bin/data_diode stop
+
+# ExecReload (optional - if we implement reload)
+# ExecReload=/opt/data-diode/_build/prod/rel/data_diode/bin/data_diode restart
+
+# Watchdog settings for harsh environments
+# Hardware watchdog integration
+WatchdogSec=60
+WatchdogTimestamp=true
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/data-diode /var/log/data-diode /opt/data-diode
+DevicePolicy=closed
+# Allow access to environmental sensors via GPIO
+DeviceAllow=/dev/ttyUSB0 rw
+DeviceAllow=/dev/gpiochip0 rw
+# Allow access to watchdog device
+DeviceAllow=/dev/watchdog rw
+DeviceAllow=/dev/misc/watchdog rw
+
+# Network restrictions
+# Restrict to specific network interfaces if needed
+# IPAddressAllow=192.168.1.0/24
+# IPAddressDeny=any
+
+# Process isolation
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=data-diode
+
+# OOMScoreAdjust (prevent being killed early)
+OOMScoreAdjust=-500
+
+# Nice level (lower priority than critical system services)
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

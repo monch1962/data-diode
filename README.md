@@ -107,6 +107,19 @@ The application is configured via environment variables. For OT deployments (e.g
 | `MAX_PACKETS_PER_SEC` | Rate Limit | 1000 | 500 |
 | `DISK_CLEANUP_BATCH_SIZE` | Files to Delete Per Cleanup | 100 | 50 |
 
+### Harsh Environment Configuration
+Additional environment variables for harsh environment monitoring:
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `MEMINFO_PATH` | Memory info file path | `/proc/meminfo` |
+| `THERMAL_ZONE_PATH` | Thermal sensor path | `/sys/class/thermal/thermal_zone0/temp` |
+| `POWER_SUPPLY_PATH` | Power supply directory | `/sys/class/power_supply` |
+| `ENABLE_EMERGENCY_SHUTDOWN` | Allow emergency shutdown | `false` (for safety) |
+| `HEALTH_API_TOKEN` | API authentication token | (generate with openssl) |
+| `S1_INTERFACE` | S1 network interface name | `eth0` |
+| `S2_INTERFACE` | S2 network interface name | `eth1` |
+
 ### OT Hardening & Stability
 - **Configuration Validation**: All configuration is validated at application startup to prevent runtime failures with invalid settings.
 - **Centralized Utilities**: Shared `NetworkHelpers` and `ConfigHelpers` modules eliminate code duplication and provide consistent configuration access.
@@ -198,6 +211,91 @@ The application is designed to be "cold-start" resilient:
 ### 3. SD Card Protection
 To prevent filesystem corruption during power loss, it is highly recommended to use the Raspberry Pi's "Overlay File System" (via `raspi-config`) to make the system partition read-only.
 
+## 🌡️ Harsh Environment Operation
+
+For deployments in extreme or inaccessible environments (remote field sites, industrial plants, outdoor enclosures), the data diode includes comprehensive autonomous monitoring and self-healing capabilities:
+
+### Environmental Monitoring
+The `DataDiode.EnvironmentalMonitor` module continuously tracks thermal conditions:
+- **Multi-Zone Temperature Monitoring**: CPU, storage, and ambient temperature tracking
+- **Humidity Sensing**: Support for DHT22 and DS18B20 environmental sensors
+- **Thermal Hysteresis**: 5°C delta prevents rapid cooling/heating cycling
+- **Automatic Mitigation**: Activates protective modes at warning levels (65°C CPU, 30% battery)
+- **Emergency Shutdown**: Prevents hardware damage at critical temperatures (75°C CPU, -20°C storage)
+
+### Network Resilience
+The `DataDiode.NetworkGuard` module ensures network reliability in unstable conditions:
+- **Interface Flapping Detection**: Identifies rapid state changes (5+ transitions in 5 minutes)
+- **Automatic Recovery**: Attempts interface restart with exponential backoff (5s → 160s)
+- **ARP Cache Management**: Clears stale ARP entries to restore connectivity
+- **Status Monitoring**: Tracks S1/S2 interface health every 30 seconds
+
+### Power Management
+The `DataDiode.PowerMonitor` module provides UPS integration for power stability:
+- **UPS Monitoring**: Supports NUT (Network UPS Tools) and sysfs power supply monitoring
+- **Graceful Shutdown**: Automatic safe shutdown at 10% battery
+- **Low Power Mode**: Activates at 30% battery to extend runtime
+- **Power Event Logging**: Records all power transitions for analysis
+
+### Memory Protection
+The `DataDiode.MemoryGuard` module prevents memory exhaustion in long-running systems:
+- **Memory Leak Detection**: Tracks baseline and alerts on 50% growth
+- **Automatic Garbage Collection**: Triggers at 80% memory usage
+- **Recovery Actions**: Restarts non-critical processes at 90% usage
+- **Historical Analysis**: Maintains 100-sample memory history for trend detection
+
+### Enhanced Storage Management
+The `DataDiode.DiskCleaner` module provides intelligent storage management:
+- **Health-Based Retention**: Doubles data retention during system stress (2x multiplier)
+- **Emergency Cleanup**: Immediate action when disk space < 5%
+- **Log Rotation**: Automatic daily rotation with 90-day retention
+- **Integrity Verification**: Periodic data integrity checks every 2 hours
+
+### Remote Monitoring API
+The `DataDiode.HealthAPI` module provides HTTP endpoints for remote monitoring (production only):
+- **Health Status**: `GET /api/health` - Comprehensive system health
+- **Metrics**: `GET /api/metrics` - Operational metrics and throughput
+- **Environment**: `GET /api/environment` - Temperature and sensor readings
+- **Network**: `GET /api/network` - Interface status and connection counts
+- **Storage**: `GET /api/storage` - Disk usage and file statistics
+- **Control**: `POST /api/restart` or `/api/shutdown` - Authenticated remote control
+
+**Authentication**: Requires `HEALTH_API_TOKEN` environment variable for control endpoints.
+
+### Deployment Script
+A comprehensive deployment script is provided for harsh environment setups:
+```bash
+./deployment/deploy-for-harsh-environment.sh
+```
+
+This script configures:
+- Separate data partition on `/data`
+- Log rotation with compression
+- Kernel parameter tuning (TCP keepalive, memory management)
+- Hardware watchdog setup
+- UPS/NUT monitoring configuration
+- Secure API token generation
+
+### Temperature Thresholds
+| Condition | CPU Temp | Ambient Temp | Action |
+|-----------|----------|--------------|--------|
+| Normal | < 65°C | 5-70°C | None |
+| Warning Hot | > 65°C | > 70°C | Activate cooling mode |
+| Warning Cold | N/A | < 5°C | Activate heating mode |
+| Critical Hot | > 75°C | N/A | Emergency shutdown |
+| Critical Cold | N/A | < -20°C | Emergency shutdown |
+
+### Harsh Environment Configuration
+Additional environment variables for harsh environments:
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `DATA_DIR` | Data storage path | `.` |
+| `HEALTH_API_TOKEN` | API authentication token | (generate with openssl) |
+| `S1_INTERFACE` | S1 network interface name | `eth0` |
+| `S2_INTERFACE` | S2 network interface name | `eth1` |
+| `ALERT_FILE` | Alert event log path | `/var/log/data-diode/alerts.log` |
+
 ## 📡 Advanced Remote Support & Self-Healing
 
 For mission-critical deployments where on-site access is limited, the application includes autonomous health management:
@@ -269,7 +367,7 @@ Detailed results, including packets per second and bandwidth throughput, are aut
 
 ### Test Coverage
 The project maintains a high quality bar for unattended operation through an exhaustive test suite.
-- **Current Coverage**: **~92%** (105 passing tests)
+- **Current Coverage**: **~52%** (286 passing tests)
 - **Robustness Suite**: Includes `test/long_term_robustness_test.exs` which simulates:
   - Disk-full scenarios.
   - Network interface flapping.
@@ -277,10 +375,68 @@ The project maintains a high quality bar for unattended operation through an exh
   - Clock jumps (NTP drift).
 - **Security Suite**: Comprehensive MITRE ATT&CK attack simulation in `test/security_attack_test.exs`.
 - **Property Tests**: Verification of protocol parsing, rate limiting, and data integrity.
+- **Harsh Environment Tests**: Comprehensive testing for environmental monitoring, power management, and network resilience.
 
 To run verification locally:
 ```bash
 mix test --cover
+```
+
+### Harsh Environment Testing
+The project includes specialized test infrastructure for validating graceful degradation when hardware is unavailable:
+
+**Test Support Modules**:
+- `test/support/hardware_fixtures.ex` - Creates simulated hardware (thermal sensors, UPS, memory, network interfaces)
+- `test/support/missing_hardware.ex` - Simulates missing or broken hardware for testing graceful degradation
+
+**Test Coverage by Module**:
+| Module | Coverage | Tests |
+|--------|----------|-------|
+| EnvironmentalMonitor | 62.83% | Temperature sensors, critical conditions, missing sensors |
+| MemoryGuard | 21.36% | Memory monitoring, leak detection, missing meminfo |
+| DiskCleaner | 60.00% | Emergency cleanup, log rotation, integrity checks |
+| NetworkGuard | 11.54% | Interface flapping, recovery, configuration variations |
+| PowerMonitor | 8.62% | UPS monitoring, battery levels, AC power |
+| HealthAPI | 0.76% | Helper functions, data parsing (API tested in integration) |
+
+**Testing Capabilities**:
+- Simulates temperature sensors (CPU, ambient, storage) in `/sys/class/thermal`
+- Mocks UPS battery levels and power supply status
+- Creates fake `/proc/meminfo` for memory testing
+- Tests network interface monitoring without physical interfaces
+- Validates graceful degradation when sensors are missing or broken
+
+### Running Harsh Environment Tests
+To run tests for specific harsh environment modules:
+
+```bash
+# Test all harsh environment modules
+mix test test/environmental_monitor_test.exs test/memory_guard_test.exs \
+         test/network_guard_test.exs test/power_monitor_test.exs \
+         test/disk_cleaner_enhanced_test.exs test/health_api_mock_test.exs
+
+# Test specific modules
+mix test test/environmental_monitor_test.exs
+mix test test/memory_guard_test.exs
+
+# Run with coverage for harsh environment modules
+mix test test/environmental_monitor_test.exs test/memory_guard_test.exs \
+         test/network_guard_test.exs test/power_monitor_test.exs \
+         test/disk_cleaner_enhanced_test.exs --cover
+```
+
+### Testing Graceful Degradation
+The test infrastructure allows you to verify that the system behaves correctly when hardware is unavailable:
+
+```bash
+# Tests simulate missing sensors and verify the system continues operating
+mix test test/environmental_monitor_test.exs
+
+# Tests verify proper error handling and logging
+mix test test/memory_guard_test.exs
+
+# Tests confirm network resilience without physical interfaces
+mix test test/network_guard_test.exs
 ```
 
 ### Code Quality Improvements
@@ -310,6 +466,18 @@ Recent codebase improvements include:
 | `lib/data_diode/s2/decapsulator.ex`| S2 Core logic & Secure Storage (Clock-drift safe) |
 | `lib/data_diode/disk_cleaner.ex` | Autonomous disk maintenance (actual file deletion) |
 
+### Harsh Environment Modules
+
+| Filepath | Description |
+| --- | --- |
+| `lib/data_diode/environmental_monitor.ex` | Multi-zone temperature & humidity monitoring |
+| `lib/data_diode/network_guard.ex` | Network interface flapping detection & recovery |
+| `lib/data_diode/power_monitor.ex` | UPS integration & graceful power management |
+| `lib/data_diode/memory_guard.ex` | Memory leak detection & recovery |
+| `lib/data_diode/health_api.ex` | HTTP API for remote monitoring and control |
+| `lib/data_diode/system_monitor.ex` | System health telemetry and metrics |
+| `lib/data_diode/watchdog.ex` | Hardware watchdog management |
+
 ### Configuration & Operations
 
 | Filepath | Description |
@@ -318,11 +486,27 @@ Recent codebase improvements include:
 | `.github/workflows/elixir.yml` | CI pipeline with coverage reporting |
 | `Dockerfile` | Container build with healthcheck |
 | `deploy/data_diode.service.sample` | Systemd service template with security hardening |
+| `deployment/data-diode.service` | Production systemd service with resource limits |
+| `deployment/deploy-for-harsh-environment.sh` | Automated deployment script for harsh environments |
+
+### Test Infrastructure
+
+| Filepath | Description |
+| --- | --- |
+| `test/support/hardware_fixtures.ex` | Creates simulated hardware for testing |
+| `test/support/missing_hardware.ex` | Simulates missing/broken hardware |
+| `test/environmental_monitor_test.exs` | Temperature and sensor testing |
+| `test/memory_guard_test.exs` | Memory monitoring and leak detection |
+| `test/network_guard_test.exs` | Network resilience testing |
+| `test/power_monitor_test.exs` | UPS and power management testing |
+| `test/disk_cleaner_enhanced_test.exs` | Storage management testing |
+| `test/health_api_mock_test.exs` | HealthAPI helper function testing |
 
 ### Documentation
 
 | Filepath | Description |
 | --- | --- |
+| `TESTING.md` | Comprehensive testing guide and infrastructure documentation |
 | `bin/automate_load_test.exs` | Automated load test script (lifecycle managed) |
 | `bin/run_load_test.sh` | Shell wrapper for automated performance testing |
 | `OPERATIONS.md` | SOC Monitoring (SLIs, SLOs, SLAs) |

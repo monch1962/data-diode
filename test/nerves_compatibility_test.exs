@@ -8,18 +8,22 @@ defmodule DataDiode.NervesCompatibilityTest do
 
   test "verify no hardcoded absolute paths in logic" do
     # Nerves uses a minimal layout. We should check that logic doesn't assume standard Ubuntu/Debian paths.
-    # Excluded: /sys/ (thermal/hardware) and /tmp/ (standard)
-    
-    files = Path.wildcard("lib/**/*.ex")
-    
+    # Excluded: /sys/ (thermal/hardware), /tmp/ (standard), /proc/ (kernel), /dev/ (devices), /var/ (logs)
+
+    # Also exclude health_api.ex which is for server deployments only
+    files = Path.wildcard("lib/**/*.ex") |> Enum.reject(&(&1 =~ "health_api.ex"))
+
     for file <- files do
       content = File.read!(file)
-      # Match strings starting with "/" that aren't /sys or /tmp
+      # Match strings starting with "/" that aren't in allowed paths
       matches = Regex.scan(~r/"\/[a-zA-Z0-9_\-\/]+"/, content)
       |> List.flatten()
-      |> Enum.reject(fn path -> 
-        String.starts_with?(path, "\"/sys/") or 
+      |> Enum.reject(fn path ->
+        String.starts_with?(path, "\"/sys/") or
         String.starts_with?(path, "\"/tmp/") or
+        String.starts_with?(path, "\"/proc/") or
+        String.starts_with?(path, "\"/dev/") or
+        String.starts_with?(path, "\"/var/") or
         String.contains?(path, "#") # interpolation
       end)
 

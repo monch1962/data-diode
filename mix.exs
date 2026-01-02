@@ -56,8 +56,12 @@ defmodule DataDiode.MixProject do
       {:opentelemetry, "~> 1.0"},
       # Use the Exporter for console output and eventual external collection
       {:opentelemetry_exporter, "~> 1.0"},
-      # Mox dependency for testing (fixed to run globally due to compile error)
-      {:mox, "~> 1.0"}
+      # HTTP API for health monitoring (NEW for harsh environments)
+      {:plug_cowboy, "~> 2.6"},
+      {:plug, "~> 1.14"},
+      {:jason, "~> 1.4"},
+      # Mox dependency for testing
+      {:mox, "~> 1.0", only: :test}
     ]
   end
 end
