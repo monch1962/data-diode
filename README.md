@@ -450,6 +450,122 @@ Recent codebase improvements include:
 - Implemented actual functionality (not simulation) where needed
 - Fixed PowerMonitor to gracefully handle missing `upsc` command (lib/data_diode/power_monitor.ex:61-76)
 - Added comprehensive GenServer callback testing for harsh environment modules
+- Added static analysis tools (Dialyzer, Credo) for type checking and code quality
+
+## 🛠️ Development Tools
+
+The project includes several tools to maintain code quality and catch bugs early:
+
+### Static Analysis
+
+#### Dialyzer (Type Checking)
+Dialyzer performs static analysis of Elixir code to find type discrepancies and bugs.
+
+```bash
+# Build PLT (Persistent Lookup Table) - first time only
+mix dialyzer --plt
+
+# Run type checking
+mix dialyzer
+
+# Run with format suitable for CI
+mix dialyzer --format short
+```
+
+**What it catches:**
+- Type mismatches in function calls
+- Pattern matching errors
+- Race conditions
+- Unused functions
+
+#### Credo (Code Quality)
+Credo is a static code analysis tool that checks code style and design consistency.
+
+```bash
+# Run all checks
+mix credo
+
+# Run with strict mode (fails on warnings)
+mix credo --strict
+
+# Show suggestions in a readable format
+mix credo --format oneline
+
+# Generate HTML report
+mix credo --format html
+```
+
+**What it checks:**
+- Code complexity (cyclomatic complexity, nesting depth)
+- Code readability (line length, naming conventions)
+- Design issues (code duplication, module design)
+- Consistency violations
+
+### Pre-commit Hooks
+
+The project includes automated pre-commit hooks to ensure code quality before commits:
+
+```bash
+# Install pre-commit hooks (already installed if you ran setup)
+./bin/install_hooks
+
+# The hooks run automatically on git commit and check:
+# - Code formatting (mix format)
+# - Code quality (mix credo)
+# - Quick test suite (mix test --max-failures=3)
+
+# To skip hooks for a single commit:
+git commit --no-verify
+```
+
+### Property-Based Testing
+
+The project includes property-based tests that verify invariants across many randomly generated inputs:
+
+```bash
+# Run property-based tests
+mix test test/property_test.exs
+
+# These tests use StreamData to generate random inputs and verify:
+# - IP address format validation
+# - Port validation
+# - Memory percentage calculations
+# - CRC32 checksum properties
+```
+
+### Development Workflow
+
+Recommended workflow for contributing:
+
+1. **Make your changes**
+   ```bash
+   # Edit code
+   ```
+
+2. **Format code**
+   ```bash
+   mix format
+   ```
+
+3. **Run static analysis**
+   ```bash
+   mix credo --strict
+   mix dialyzer
+   ```
+
+4. **Run tests**
+   ```bash
+   mix test                    # Run all tests
+   mix test --cover            # With coverage report
+   mix test --max-failures=1   # Stop at first failure
+   ```
+
+5. **Commit**
+   ```bash
+   git add .
+   git commit -m "Description of changes"
+   # Pre-commit hooks will run automatically
+   ```
 
 ## 🗃️ Key Files
 

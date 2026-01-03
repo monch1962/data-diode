@@ -8,6 +8,17 @@ defmodule DataDiode.MixProject do
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      # Dialyzer configuration
+      dialyzer: [
+        plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+        plt_add_apps: [:mix, :ex_unit],
+        flags: [
+          :error_handling,
+          :race_conditions,
+          :unmatched_returns,
+          :underspecs
+        ]
+      ],
       releases: [
         data_diode: [
           include_erts: true,
@@ -60,6 +71,13 @@ defmodule DataDiode.MixProject do
       {:plug_cowboy, "~> 2.6"},
       {:plug, "~> 1.14"},
       {:jason, "~> 1.4"},
+      # Static analysis tools
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
+      {:credo, "~> 1.7", only: [:dev], runtime: false},
+      # Property-based testing
+      {:stream_data, "~> 1.0", only: :test},
+      # HTTP testing for HealthAPI
+      {:bypass, "~> 2.1", only: :test, override: true},
       # Mox dependency for testing
       {:mox, "~> 1.0", only: :test}
     ]

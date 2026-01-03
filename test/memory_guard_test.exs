@@ -9,15 +9,15 @@ defmodule DataDiode.MemoryGuardTest do
 
   describe "with valid memory configuration" do
     setup do
+      # 8GB total, 4GB used
       %{
         temp_dir: temp_dir,
         proc_dir: proc_dir,
         total_mb: total_mb,
         used_mb: used_mb
-      } = setup_meminfo(8000, 4000)  # 8GB total, 4GB used
+      } = setup_meminfo(8000, 4000)
 
-      Application.put_env(:data_diode, :meminfo_path,
-        Path.join(proc_dir, "meminfo"))
+      Application.put_env(:data_diode, :meminfo_path, Path.join(proc_dir, "meminfo"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -58,11 +58,11 @@ defmodule DataDiode.MemoryGuardTest do
 
   describe "with high memory usage" do
     setup do
+      # 81% used
       %{temp_dir: temp_dir, proc_dir: proc_dir} =
-        setup_meminfo(8000, 6500)  # 81% used
+        setup_meminfo(8000, 6500)
 
-      Application.put_env(:data_diode, :meminfo_path,
-        Path.join(proc_dir, "meminfo"))
+      Application.put_env(:data_diode, :meminfo_path, Path.join(proc_dir, "meminfo"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -97,8 +97,7 @@ defmodule DataDiode.MemoryGuardTest do
       %{temp_dir: temp_dir, proc_dir: proc_dir} =
         setup_meminfo(8000, 7360)
 
-      Application.put_env(:data_diode, :meminfo_path,
-        Path.join(proc_dir, "meminfo"))
+      Application.put_env(:data_diode, :meminfo_path, Path.join(proc_dir, "meminfo"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -131,8 +130,7 @@ defmodule DataDiode.MemoryGuardTest do
     setup do
       %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_no_meminfo()
 
-      Application.put_env(:data_diode, :meminfo_path,
-        Path.join(proc_dir, "meminfo"))
+      Application.put_env(:data_diode, :meminfo_path, Path.join(proc_dir, "meminfo"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -230,11 +228,12 @@ defmodule DataDiode.MemoryGuardTest do
       total_mb = 0
       used_mb = 0
 
-      percent = if total_mb > 0 do
-        (used_mb / total_mb * 100) |> Float.round(1)
-      else
-        0.0
-      end
+      percent =
+        if total_mb > 0 do
+          (used_mb / total_mb * 100) |> Float.round(1)
+        else
+          0.0
+        end
 
       assert percent == 0.0
     end
@@ -244,8 +243,7 @@ defmodule DataDiode.MemoryGuardTest do
     setup do
       %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 4000)
 
-      Application.put_env(:data_diode, :meminfo_path,
-        Path.join(proc_dir, "meminfo"))
+      Application.put_env(:data_diode, :meminfo_path, Path.join(proc_dir, "meminfo"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -297,8 +295,7 @@ defmodule DataDiode.MemoryGuardTest do
       %{temp_dir: temp_dir, proc_dir: proc_dir, total_mb: total_mb} =
         setup_meminfo(8000, 4000)
 
-      Application.put_env(:data_diode, :meminfo_path,
-        Path.join(proc_dir, "meminfo"))
+      Application.put_env(:data_diode, :meminfo_path, Path.join(proc_dir, "meminfo"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -323,11 +320,12 @@ defmodule DataDiode.MemoryGuardTest do
       baseline = %{total: 0, used: 0}
       current = %{total: 8_000_000_000, used: 4_000_000_000}
 
-      growth_rate = if baseline.total > 0 do
-        (current.used - baseline.used) / baseline.total
-      else
-        0
-      end
+      growth_rate =
+        if baseline.total > 0 do
+          (current.used - baseline.used) / baseline.total
+        else
+          0
+        end
 
       assert growth_rate == 0
     end
@@ -361,8 +359,7 @@ defmodule DataDiode.MemoryGuardTest do
     test "maintains memory history" do
       %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 4000)
 
-      Application.put_env(:data_diode, :meminfo_path,
-        Path.join(proc_dir, "meminfo"))
+      Application.put_env(:data_diode, :meminfo_path, Path.join(proc_dir, "meminfo"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})

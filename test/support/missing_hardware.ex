@@ -6,7 +6,12 @@ defmodule DataDiode.MissingHardware do
 
   # Simple temporary directory creation
   defp create_temp_dir(prefix) do
-    temp_dir = Path.join([System.tmp_dir!(), "data_diode_test_#{prefix}_#{System.unique_integer([:positive])}"])
+    temp_dir =
+      Path.join([
+        System.tmp_dir!(),
+        "data_diode_test_#{prefix}_#{System.unique_integer([:positive])}"
+      ])
+
     File.mkdir_p!(temp_dir)
     temp_dir
   end
@@ -160,4 +165,3 @@ defmodule DataDiode.MissingHardware do
     %{interfaces: ["eth0"], s1_interface: "eth0", s2_interface: "eth0"}
   end
 end
-

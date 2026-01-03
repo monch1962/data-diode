@@ -54,10 +54,11 @@ defmodule DataDiode.WatchdogTest do
 
       # Note: This test might not fail if run as root
       user = System.get_env("USER")
+
       if user not in ["root", nil] do
         assert capture_log(fn ->
-          Watchdog.pulse(invalid_path)
-        end) =~ "Failed to pulse"
+                 Watchdog.pulse(invalid_path)
+               end) =~ "Failed to pulse"
       end
     end
   end
@@ -70,7 +71,8 @@ defmodule DataDiode.WatchdogTest do
 
       # The real test would involve mocking, but we'll test the integration
       # Note: This test assumes SystemMonitor.get_cpu_temp() might return "unknown"
-      assert true = is_boolean(true)  # Placeholder - actual test would need mocking
+      # Placeholder - actual test would need mocking
+      assert true = is_boolean(true)
     end
 
     test "returns false when temperature exceeds max" do

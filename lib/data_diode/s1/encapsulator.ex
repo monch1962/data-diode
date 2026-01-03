@@ -18,7 +18,7 @@ defmodule DataDiode.S1.Encapsulator do
   # Target is always localhost within the same Pod/Pi
   @s2_udp_target {127, 0, 0, 1}
   # Default, but will be overridden by env var
-  @s2_udp_port 42001
+  @s2_udp_port 42_001
 
   # --------------------------------------------------------------------------
   # API
@@ -121,16 +121,7 @@ defmodule DataDiode.S1.Encapsulator do
             final_packet = <<header_payload::binary, checksum::integer-unsigned-big-32>>
 
             # 4. Send using existing socket
-            case :gen_udp.send(state.socket, @s2_udp_target, state.dest_port, final_packet) do
-              :ok ->
-                DataDiode.Metrics.inc_packets()
-                # Success
-                :ok
-
-              {:error, reason} ->
-                DataDiode.Metrics.inc_errors()
-                Logger.warning("S1 Encapsulator: Failed to send packet: #{inspect(reason)}")
-            end
+            send_udp_packet(state.socket, state.dest_port, final_packet)
 
           {:error, :invalid_ip} ->
             DataDiode.Metrics.inc_errors()
@@ -174,10 +165,10 @@ defmodule DataDiode.S1.Encapsulator do
     end
   end
 
-  defp resolve_s2_port() do
+  defp resolve_s2_port do
     port = Application.get_env(:data_diode, :s2_port, @s2_udp_port)
 
-    if is_integer(port) and port > 0 and port <= 65535 do
+    if is_integer(port) and port > 0 and port <= 65_535 do
       port
     else
       Logger.warning(
@@ -220,16 +211,32 @@ defmodule DataDiode.S1.Encapsulator do
         true
 
       list when is_list(list) ->
-        if :any in list do
-          true
-        else
-          Enum.any?(list, fn proto_atom ->
-            DataDiode.ProtocolDefinitions.matches?(proto_atom, payload)
-          end)
-        end
+        check_protocol_list(list, payload)
 
       _ ->
         true
+    end
+  end
+
+  defp check_protocol_list(list, payload) do
+    if :any in list do
+      true
+    else
+      Enum.any?(list, fn proto_atom ->
+        DataDiode.ProtocolDefinitions.matches?(proto_atom, payload)
+      end)
+    end
+  end
+
+  defp send_udp_packet(socket, dest_port, packet) do
+    case :gen_udp.send(socket, @s2_udp_target, dest_port, packet) do
+      :ok ->
+        DataDiode.Metrics.inc_packets()
+        :ok
+
+      {:error, reason} ->
+        DataDiode.Metrics.inc_errors()
+        Logger.warning("S1 Encapsulator: Failed to send packet: #{inspect(reason)}")
     end
   end
 end

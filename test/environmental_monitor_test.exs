@@ -12,8 +12,11 @@ defmodule DataDiode.EnvironmentalMonitorTest do
       %{temp_dir: temp_dir, thermal_base: thermal_base} =
         setup_full_thermal_sensors(45, 22, 35)
 
-      Application.put_env(:data_diode, :thermal_zone_path,
-        Path.join(thermal_base, "thermal_zone0/temp"))
+      Application.put_env(
+        :data_diode,
+        :thermal_zone_path,
+        Path.join(thermal_base, "thermal_zone0/temp")
+      )
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -45,8 +48,7 @@ defmodule DataDiode.EnvironmentalMonitorTest do
       %{temp_dir: temp_dir, thermal_dir: thermal_dir, cpu_temp: cpu_temp} =
         setup_high_cpu_temp(70)
 
-      Application.put_env(:data_diode, :thermal_zone_path,
-        Path.join(thermal_dir, "temp"))
+      Application.put_env(:data_diode, :thermal_zone_path, Path.join(thermal_dir, "temp"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -76,8 +78,7 @@ defmodule DataDiode.EnvironmentalMonitorTest do
     setup do
       %{temp_dir: temp_dir, thermal_dir: thermal_dir} = setup_critical_cpu_temp(80)
 
-      Application.put_env(:data_diode, :thermal_zone_path,
-        Path.join(thermal_dir, "temp"))
+      Application.put_env(:data_diode, :thermal_zone_path, Path.join(thermal_dir, "temp"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -107,8 +108,11 @@ defmodule DataDiode.EnvironmentalMonitorTest do
     setup do
       %{temp_dir: temp_dir, sys_dir: sys_dir} = setup_no_thermal_sensors()
 
-      Application.put_env(:data_diode, :thermal_zone_path,
-        Path.join(sys_dir, "thermal_zone0/temp"))
+      Application.put_env(
+        :data_diode,
+        :thermal_zone_path,
+        Path.join(sys_dir, "thermal_zone0/temp")
+      )
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -147,8 +151,7 @@ defmodule DataDiode.EnvironmentalMonitorTest do
     setup do
       %{temp_dir: temp_dir, thermal_dir: thermal_dir} = setup_broken_thermal_sensor()
 
-      Application.put_env(:data_diode, :thermal_zone_path,
-        Path.join(thermal_dir, "temp"))
+      Application.put_env(:data_diode, :thermal_zone_path, Path.join(thermal_dir, "temp"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -183,8 +186,7 @@ defmodule DataDiode.EnvironmentalMonitorTest do
       %{temp_dir: temp_dir, thermal_dir: thermal_dir, cpu_temp: cpu_temp} =
         setup_cpu_only_thermal(50)
 
-      Application.put_env(:data_diode, :thermal_zone_path,
-        Path.join(thermal_dir, "temp"))
+      Application.put_env(:data_diode, :thermal_zone_path, Path.join(thermal_dir, "temp"))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -221,8 +223,11 @@ defmodule DataDiode.EnvironmentalMonitorTest do
       %{temp_dir: temp_dir, thermal_base: thermal_base} =
         setup_full_thermal_sensors(45, 22, 35)
 
-      Application.put_env(:data_diode, :thermal_zone_path,
-        Path.join(thermal_base, "thermal_zone0/temp"))
+      Application.put_env(
+        :data_diode,
+        :thermal_zone_path,
+        Path.join(thermal_base, "thermal_zone0/temp")
+      )
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})

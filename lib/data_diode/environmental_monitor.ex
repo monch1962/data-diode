@@ -46,11 +46,13 @@ defmodule DataDiode.EnvironmentalMonitor do
   @impl true
   def init(:ok) do
     Logger.info("EnvironmentalMonitor: Starting multi-zone monitoring")
+
     state = %{
       thermal_state: @normal_state,
       history: [],
       last_action: nil
     }
+
     {:ok, state}
   end
 
@@ -86,12 +88,18 @@ defmodule DataDiode.EnvironmentalMonitor do
 
   defp read_cpu_temp do
     # Read from /sys/class/thermal/thermal_zone0/temp
-    thermal_path = Application.get_env(:data_diode, :thermal_zone_path, "/sys/class/thermal/thermal_zone0/temp")
+    thermal_path =
+      Application.get_env(
+        :data_diode,
+        :thermal_zone_path,
+        "/sys/class/thermal/thermal_zone0/temp"
+      )
 
     case File.read(thermal_path) do
       {:ok, contents} ->
         temp_millidegrees = String.trim(contents) |> String.to_integer()
-        temp_millidegrees / 1000.0  # Convert to Celsius
+        # Convert to Celsius
+        temp_millidegrees / 1000.0
 
       {:error, _reason} ->
         Logger.warning("EnvironmentalMonitor: Cannot read CPU temperature from #{thermal_path}")
@@ -104,7 +112,8 @@ defmodule DataDiode.EnvironmentalMonitor do
     # For now, approximate with CPU temp (storage typically cooler)
     case read_cpu_temp() do
       :unknown -> :unknown
-      cpu_temp when is_number(cpu_temp) -> max(cpu_temp - 10, 0)  # Storage usually ~10°C cooler
+      # Storage usually ~10°C cooler
+      cpu_temp when is_number(cpu_temp) -> max(cpu_temp - 10, 0)
       _ -> :unknown
     end
   end
@@ -179,10 +188,12 @@ defmodule DataDiode.EnvironmentalMonitor do
     case File.read(path) do
       {:ok, contents} ->
         trimmed = String.trim(contents)
+
         case Float.parse(trimmed) do
           {val, _} -> val
           :error -> :unknown
         end
+
       {:error, _reason} ->
         :unknown
     end
@@ -193,52 +204,81 @@ defmodule DataDiode.EnvironmentalMonitor do
   defp evaluate_conditions(readings) do
     state = get_internal_state()
 
+    evaluate_conditions_in_priority_order(readings, state)
+  end
+
+  defp evaluate_conditions_in_priority_order(readings, state) do
     cond do
-      # Critical hot - immediate action needed
-      any_critical_hot?(readings) ->
-        Logger.error("EnvironmentalMonitor: Critical temperature exceeded!")
-        trigger_emergency_shutdown(readings)
-        Map.put(readings, :status, :critical_hot)
-
-      # Warning hot - start mitigation
-      any_warning_hot?(readings, state) ->
-        activate_cooling_mode()
-        Map.put(readings, :status, :warning_hot)
-
-      # Critical cold - prevent condensation damage
-      any_critical_cold?(readings) ->
-        activate_heating_mode()
-        Map.put(readings, :status, :critical_cold)
-
-      # Warning cold
-      any_warning_cold?(readings, state) ->
-        activate_heating_mode()
-        Map.put(readings, :status, :warning_cold)
-
-      # Humidity critical
-      readings.humidity != :unknown and readings.humidity > @humidity_critical ->
-        activate_dehumidifier()
-        Map.put(readings, :status, :critical_humidity)
-
-      # Humidity warning
-      readings.humidity != :unknown and readings.humidity > @humidity_warning ->
-        Logger.warning("EnvironmentalMonitor: High humidity (#{readings.humidity}%)")
-        Map.put(readings, :status, :warning_humidity)
-
-      # Normal conditions
-      true ->
-        if state != @normal_state do
-          Logger.info("EnvironmentalMonitor: Conditions normalized, returning to normal mode")
-          set_internal_state(@normal_state)
-        end
-        Map.put(readings, :status, :normal)
+      handle_critical_hot?(readings) -> handle_critical_hot(readings)
+      handle_warning_hot?(readings, state) -> handle_warning_hot(readings)
+      handle_critical_cold?(readings) -> handle_critical_cold(readings)
+      handle_warning_cold?(readings, state) -> handle_warning_cold(readings)
+      handle_critical_humidity?(readings) -> handle_critical_humidity(readings)
+      handle_warning_humidity?(readings) -> handle_warning_humidity(readings)
+      true -> handle_normal_conditions(readings, state)
     end
+  end
+
+  defp handle_critical_hot?(readings), do: any_critical_hot?(readings)
+
+  defp handle_critical_hot(readings) do
+    Logger.error("EnvironmentalMonitor: Critical temperature exceeded!")
+    trigger_emergency_shutdown(readings)
+    Map.put(readings, :status, :critical_hot)
+  end
+
+  defp handle_warning_hot?(readings, state), do: any_warning_hot?(readings, state)
+
+  defp handle_warning_hot(readings) do
+    activate_cooling_mode()
+    Map.put(readings, :status, :warning_hot)
+  end
+
+  defp handle_critical_cold?(readings), do: any_critical_cold?(readings)
+
+  defp handle_critical_cold(readings) do
+    activate_heating_mode()
+    Map.put(readings, :status, :critical_cold)
+  end
+
+  defp handle_warning_cold?(readings, state), do: any_warning_cold?(readings, state)
+
+  defp handle_warning_cold(readings) do
+    activate_heating_mode()
+    Map.put(readings, :status, :warning_cold)
+  end
+
+  defp handle_critical_humidity?(readings) do
+    readings.humidity != :unknown and readings.humidity > @humidity_critical
+  end
+
+  defp handle_critical_humidity(readings) do
+    activate_dehumidifier()
+    Map.put(readings, :status, :critical_humidity)
+  end
+
+  defp handle_warning_humidity?(readings) do
+    readings.humidity != :unknown and readings.humidity > @humidity_warning
+  end
+
+  defp handle_warning_humidity(readings) do
+    Logger.warning("EnvironmentalMonitor: High humidity (#{readings.humidity}%)")
+    Map.put(readings, :status, :warning_humidity)
+  end
+
+  defp handle_normal_conditions(readings, state) do
+    if state != @normal_state do
+      Logger.info("EnvironmentalMonitor: Conditions normalized, returning to normal mode")
+      set_internal_state(@normal_state)
+    end
+
+    Map.put(readings, :status, :normal)
   end
 
   defp any_critical_hot?(readings) do
     (is_number(readings.cpu) and readings.cpu >= @cpu_temp_critical) or
-    (is_number(readings.storage) and readings.storage >= @storage_temp_critical) or
-    (is_number(readings.ambient) and readings.ambient >= @ambient_temp_critical)
+      (is_number(readings.storage) and readings.storage >= @storage_temp_critical) or
+      (is_number(readings.ambient) and readings.ambient >= @ambient_temp_critical)
   end
 
   defp any_warning_hot?(readings, state) do
@@ -246,40 +286,84 @@ defmodule DataDiode.EnvironmentalMonitor do
     # or if temperature exceeds warning + hysteresis
     cooling_active = state == @cooling_state
 
-    cpu_hot = is_number(readings.cpu) and
-              (if cooling_active, do: readings.cpu >= @cpu_temp_warning + @hysteresis_delta, else: readings.cpu >= @cpu_temp_warning)
+    cpu_hot =
+      is_number(readings.cpu) and
+        cpu_above_warning?(readings.cpu, cooling_active)
 
-    storage_hot = is_number(readings.storage) and
-                  (if cooling_active, do: readings.storage >= @storage_temp_warning + @hysteresis_delta, else: readings.storage >= @storage_temp_warning)
+    storage_hot =
+      is_number(readings.storage) and
+        storage_above_warning?(readings.storage, cooling_active)
 
-    ambient_hot = is_number(readings.ambient) and
-                  (if cooling_active, do: readings.ambient >= @ambient_temp_warning + @hysteresis_delta, else: readings.ambient >= @ambient_temp_warning)
+    ambient_hot =
+      is_number(readings.ambient) and
+        ambient_above_warning?(readings.ambient, cooling_active)
 
     cpu_hot or storage_hot or ambient_hot
   end
 
+  defp cpu_above_warning?(cpu_temp, cooling_active) do
+    warning_threshold =
+      if cooling_active, do: @cpu_temp_warning + @hysteresis_delta, else: @cpu_temp_warning
+
+    cpu_temp >= warning_threshold
+  end
+
+  defp storage_above_warning?(storage_temp, cooling_active) do
+    warning_threshold =
+      if cooling_active,
+        do: @storage_temp_warning + @hysteresis_delta,
+        else: @storage_temp_warning
+
+    storage_temp >= warning_threshold
+  end
+
+  defp ambient_above_warning?(ambient_temp, cooling_active) do
+    warning_threshold =
+      if cooling_active,
+        do: @ambient_temp_warning + @hysteresis_delta,
+        else: @ambient_temp_warning
+
+    ambient_temp >= warning_threshold
+  end
+
   defp any_critical_cold?(readings) do
     (is_number(readings.cpu) and readings.cpu <= @cpu_temp_critical_cold) or
-    (is_number(readings.ambient) and readings.ambient <= @ambient_temp_critical_cold)
+      (is_number(readings.ambient) and readings.ambient <= @ambient_temp_critical_cold)
   end
 
   defp any_warning_cold?(readings, state) do
     # Apply hysteresis for cold as well
     heating_active = state == @heating_state
 
-    ambient_cold = is_number(readings.ambient) and
-                   (if heating_active, do: readings.ambient <= @ambient_temp_warning_cold - @hysteresis_delta, else: readings.ambient <= @ambient_temp_warning_cold)
+    ambient_cold =
+      is_number(readings.ambient) and
+        ambient_below_warning?(readings.ambient, heating_active)
 
-    cpu_cold = is_number(readings.cpu) and
-               (if heating_active, do: readings.cpu <= @cpu_temp_critical_cold + 10, else: readings.cpu <= @cpu_temp_critical_cold + 5)
+    cpu_cold =
+      is_number(readings.cpu) and
+        cpu_below_critical?(readings.cpu, heating_active)
 
     ambient_cold or cpu_cold
+  end
+
+  defp ambient_below_warning?(ambient_temp, heating_active) do
+    threshold = @ambient_temp_warning_cold
+    adjusted = if heating_active, do: threshold - @hysteresis_delta, else: threshold
+    ambient_temp <= adjusted
+  end
+
+  defp cpu_below_critical?(cpu_temp, heating_active) do
+    critical_threshold =
+      if heating_active, do: @cpu_temp_critical_cold + 10, else: @cpu_temp_critical_cold + 5
+
+    cpu_temp <= critical_threshold
   end
 
   # Mitigation actions
 
   defp activate_cooling_mode do
     state = get_internal_state()
+
     if state != @cooling_state do
       Logger.warning("EnvironmentalMonitor: Activating cooling mode")
       set_internal_state(@cooling_state)
@@ -297,6 +381,7 @@ defmodule DataDiode.EnvironmentalMonitor do
 
   defp activate_heating_mode do
     state = get_internal_state()
+
     if state != @heating_state do
       Logger.warning("EnvironmentalMonitor: Activating heating mode")
       set_internal_state(@heating_state)
@@ -314,17 +399,21 @@ defmodule DataDiode.EnvironmentalMonitor do
   end
 
   defp trigger_emergency_shutdown(readings) do
-    Logger.error("EnvironmentalMonitor: EMERGENCY SHUTDOWN - Critical temperatures: #{inspect(readings)}")
+    Logger.error(
+      "EnvironmentalMonitor: EMERGENCY SHUTDOWN - Critical temperatures: #{inspect(readings)}"
+    )
 
     # Flush all buffers (if Decapsulator is running)
     case Process.whereis(DataDiode.S2.Decapsulator) do
       nil ->
         Logger.warning("EnvironmentalMonitor: S2.Decapsulator not running, skipping buffer flush")
+
       _pid ->
         try do
           GenServer.call(DataDiode.S2.Decapsulator, :flush_buffers, 5000)
         rescue
-          error -> Logger.error("EnvironmentalMonitor: Failed to flush buffers: #{inspect(error)}")
+          error ->
+            Logger.error("EnvironmentalMonitor: Failed to flush buffers: #{inspect(error)}")
         end
     end
 

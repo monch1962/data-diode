@@ -39,7 +39,7 @@ defmodule DataDiode.ConfigValidator do
     end
   end
 
-  defp validate_port!(port, _config_key) when is_integer(port) and port >= 0 and port <= 65535 do
+  defp validate_port!(port, _config_key) when is_integer(port) and port >= 0 and port <= 65_535 do
     :ok
   end
 
@@ -61,7 +61,9 @@ defmodule DataDiode.ConfigValidator do
 
   defp validate_ip!(ip_str, config_key) when is_binary(ip_str) do
     case :inet.parse_address(String.to_charlist(ip_str)) do
-      {:ok, _addr} -> :ok
+      {:ok, _addr} ->
+        :ok
+
       {:error, :einval} ->
         raise ArgumentError,
               "Invalid IP address #{inspect(ip_str)} for #{config_key}. Must be a valid IPv4 or IPv6 address."
@@ -72,10 +74,14 @@ defmodule DataDiode.ConfigValidator do
     data_dir = DataDiode.ConfigHelpers.data_dir()
 
     unless File.dir?(data_dir) do
-      Logger.warning("ConfigValidator: Data directory #{inspect(data_dir)} does not exist. Attempting to create it.")
+      Logger.warning(
+        "ConfigValidator: Data directory #{inspect(data_dir)} does not exist. Attempting to create it."
+      )
+
       case File.mkdir_p(data_dir) do
         :ok ->
           Logger.info("ConfigValidator: Created data directory: #{data_dir}")
+
         {:error, reason} ->
           raise ArgumentError,
                 "Cannot create data directory #{inspect(data_dir)}: #{inspect(reason)}"
@@ -84,9 +90,11 @@ defmodule DataDiode.ConfigValidator do
 
     # Test write permissions
     test_file = Path.join(data_dir, ".write_test_#{System.unique_integer()}")
+
     case File.write(test_file, "test") do
       :ok ->
         File.rm(test_file)
+
       {:error, reason} ->
         raise ArgumentError,
               "Data directory #{inspect(data_dir)} is not writable: #{inspect(reason)}"
@@ -108,9 +116,13 @@ defmodule DataDiode.ConfigValidator do
         _ -> false
       end)
 
-    if length(invalid_protocols) > 0 do
-      raise ArgumentError,
-            "Invalid protocol values in allow_list: #{inspect(invalid_protocols)}. All protocols must be atoms."
+    case invalid_protocols do
+      [] ->
+        :ok
+
+      _ ->
+        raise ArgumentError,
+              "Invalid protocol values in allow_list: #{inspect(invalid_protocols)}. All protocols must be atoms."
     end
   end
 

@@ -5,7 +5,12 @@ defmodule DataDiode.HardwareFixtures do
 
   # Simple temporary directory creation
   defp create_temp_dir(prefix) do
-    temp_dir = Path.join([System.tmp_dir!(), "data_diode_test_#{prefix}_#{System.unique_integer([:positive])}"])
+    temp_dir =
+      Path.join([
+        System.tmp_dir!(),
+        "data_diode_test_#{prefix}_#{System.unique_integer([:positive])}"
+      ])
+
     File.mkdir_p!(temp_dir)
     temp_dir
   end
@@ -100,4 +105,3 @@ defmodule DataDiode.HardwareFixtures do
     File.rm_rf!(temp_dir)
   end
 end
-

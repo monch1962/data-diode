@@ -7,10 +7,10 @@ defmodule DataDiode.S2.DecapsulatorTest do
   # Encapsulated header: <<192, 168, 1, 1>> (IP) <> <<51234::16>> (Port)
   @test_header <<192, 168, 1, 1, 200, 10>>
   @test_packet (fn payload ->
-    packet = @test_header <> payload
-    crc = :erlang.crc32(packet)
-    packet <> <<crc::32>>
-  end).(@test_payload)
+                  packet = @test_header <> payload
+                  crc = :erlang.crc32(packet)
+                  packet <> <<crc::32>>
+                end).(@test_payload)
 
   # NOTE: The previous approach failed because defining 'defp' inside 'test' is illegal.
   # We now check the public contract of the function: it returns :ok on success.
@@ -22,12 +22,14 @@ defmodule DataDiode.S2.DecapsulatorTest do
 
   test "process_packet/1 returns error on truncated packet" do
     # Packet is only 5 bytes, requires 6 for the IP/Port header + 4 for CRC
-    assert {:error, :invalid_packet_size_or_missing_checksum} == Decapsulator.process_packet(<<1, 2, 3, 4, 5>>)
+    assert {:error, :invalid_packet_size_or_missing_checksum} ==
+             Decapsulator.process_packet(<<1, 2, 3, 4, 5>>)
   end
 
   test "process_packet/1 with extremely short packet" do
     # Requires at least 10 bytes.
-    assert {:error, :invalid_packet_size_or_missing_checksum} = Decapsulator.process_packet(<<1, 2>>)
+    assert {:error, :invalid_packet_size_or_missing_checksum} =
+             Decapsulator.process_packet(<<1, 2>>)
   end
 
   test "process_packet/1 with exact header size but no payload" do
@@ -43,10 +45,11 @@ defmodule DataDiode.S2.DecapsulatorTest do
     payload = "data"
     packet = header <> payload
     crc = :erlang.crc32(packet)
-    
+
     # Checksum failure
-    assert {:error, :integrity_check_failed} = Decapsulator.process_packet(packet <> <<crc + 1::32>>)
-    
+    assert {:error, :integrity_check_failed} =
+             Decapsulator.process_packet(packet <> <<crc + 1::32>>)
+
     # Valid
     assert :ok = Decapsulator.process_packet(packet <> <<crc::32>>)
   end

@@ -20,7 +20,7 @@ defmodule DataDiode.ConfigHelpers do
   @doc """
   Returns the S1 (Service 1) TCP listen port.
   """
-  @spec s1_port() :: 0..65535
+  @spec s1_port() :: 0..65_535
   def s1_port do
     Application.get_env(:data_diode, :s1_port, 8080)
   end
@@ -29,7 +29,7 @@ defmodule DataDiode.ConfigHelpers do
   Returns the S1 (Service 1) UDP listen port.
   Returns nil if UDP ingress is disabled.
   """
-  @spec s1_udp_port() :: 0..65535 | nil
+  @spec s1_udp_port() :: 0..65_535 | nil
   def s1_udp_port do
     Application.get_env(:data_diode, :s1_udp_port, nil)
   end
@@ -45,9 +45,9 @@ defmodule DataDiode.ConfigHelpers do
   @doc """
   Returns the S2 (Service 2) UDP listen port.
   """
-  @spec s2_port() :: 0..65535
+  @spec s2_port() :: 0..65_535
   def s2_port do
-    Application.get_env(:data_diode, :s2_port, 42001)
+    Application.get_env(:data_diode, :s2_port, 42_001)
   end
 
   @doc """

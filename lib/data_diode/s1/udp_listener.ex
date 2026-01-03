@@ -6,8 +6,8 @@ defmodule DataDiode.S1.UDPListener do
   use GenServer
   require Logger
 
-  alias DataDiode.NetworkHelpers
   alias DataDiode.ConfigHelpers
+  alias DataDiode.NetworkHelpers
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, Keyword.put_new(opts, :name, __MODULE__))
@@ -81,7 +81,7 @@ defmodule DataDiode.S1.UDPListener do
     NetworkHelpers.udp_listen_options(ConfigHelpers.s1_ip())
   end
 
-  @spec resolve_listen_port() :: {:ok, 0..65535 | nil} | {:error, {:invalid_port, any()}}
+  @spec resolve_listen_port() :: {:ok, 0..65_535 | nil} | {:error, {:invalid_port, any()}}
   defp resolve_listen_port do
     case ConfigHelpers.s1_udp_port() do
       nil -> {:ok, nil}

@@ -5,8 +5,9 @@ defmodule DataDiode.S1.Listener do
   use GenServer
   require Logger
 
-  alias DataDiode.NetworkHelpers
   alias DataDiode.ConfigHelpers
+  alias DataDiode.NetworkHelpers
+  alias DataDiode.S1.HandlerSupervisor
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
@@ -52,7 +53,7 @@ defmodule DataDiode.S1.Listener do
       {:ok, client_socket} ->
         Logger.info("S1: New connection accepted.")
 
-        case DataDiode.S1.HandlerSupervisor.start_handler(client_socket) do
+        case HandlerSupervisor.start_handler(client_socket) do
           {:ok, pid} -> :gen_tcp.controlling_process(client_socket, pid)
           _ -> :gen_tcp.close(client_socket)
         end
@@ -88,7 +89,7 @@ defmodule DataDiode.S1.Listener do
   @doc """
   Resolves and validates the configured listen port.
   """
-  @spec resolve_listen_port() :: {:ok, 0..65535} | {:error, {:invalid_port, any()}}
+  @spec resolve_listen_port() :: {:ok, 0..65_535} | {:error, {:invalid_port, any()}}
   def resolve_listen_port do
     NetworkHelpers.validate_port(ConfigHelpers.s1_port())
   end

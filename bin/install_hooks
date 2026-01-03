@@ -1,0 +1,31 @@
+#!/bin/bash
+# Script to install git pre-commit hooks for the Data Diode project
+
+set -e
+
+HOOKS_DIR=".git/hooks"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+echo "🔧 Installing pre-commit hooks..."
+
+# Copy pre-commit hook from .git/hooks to the repository
+# This ensures the hook is tracked in version control
+if [ -f "$PROJECT_ROOT/.git/hooks/pre-commit" ]; then
+  echo "✅ Pre-commit hook already installed at $PROJECT_ROOT/.git/hooks/pre-commit"
+else
+  echo "❌ Pre-commit hook not found. Please run this from the project root."
+  exit 1
+fi
+
+# Make sure it's executable
+chmod +x "$PROJECT_ROOT/.git/hooks/pre-commit"
+
+echo "✅ Pre-commit hooks installed successfully!"
+echo ""
+echo "📖 The hooks will run:"
+echo "  • mix format --check-formatted (code formatting)"
+echo "  • mix credo --strict (code quality)"
+echo "  • mix test --max-failures=3 (quick test suite)"
+echo ""
+echo "💡 To skip hooks for a single commit, use: git commit --no-verify"

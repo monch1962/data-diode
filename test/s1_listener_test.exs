@@ -7,11 +7,12 @@ defmodule DataDiode.S1.ListenerTest do
     # Force ephemeral ports to avoid :eaddrinuse
     Application.put_env(:data_diode, :s1_port, 0)
     Application.delete_env(:data_diode, :s1_ip)
-    
+
     on_exit(fn ->
       Application.delete_env(:data_diode, :s1_port)
       Application.delete_env(:data_diode, :s1_ip)
     end)
+
     :ok
   end
 
@@ -36,28 +37,28 @@ defmodule DataDiode.S1.ListenerTest do
     # Mock a closed socket error
     # We close the socket so accept returns {:error, :closed}
     :gen_tcp.close(listen_socket)
-    
+
     assert {:stop, :closed, ^listen_socket} = Listener.handle_info(:accept_loop, listen_socket)
   end
 
   test "accepts connection and delegates to HandlerSupervisor" do
     # Start a real listener on port 0
     {:ok, pid} = Listener.start_link(name: :s1_test_listener_integration_unique)
-    
+
     # Get the actual port
     socket = :sys.get_state(pid)
     {:ok, port} = :inet.port(socket)
-    
+
     # Connect a client
     {:ok, client} = :gen_tcp.connect(~c"127.0.0.1", port, [:binary, active: false])
-    
+
     # Verify at least one child was started in HandlerSupervisor
     # We use a simple retry loop because start_handler is async
     wait_until(fn ->
       %{active: count} = DynamicSupervisor.count_children(DataDiode.S1.HandlerSupervisor)
       count >= 1
     end)
-    
+
     # Clean up
     :gen_tcp.close(client)
     GenServer.stop(pid)
@@ -80,16 +81,16 @@ defmodule DataDiode.S1.ListenerTest do
     # Start a real listener UNLINKED so the test doesn't crash when it stops
     Application.put_env(:data_diode, :s1_port, 0)
     {:ok, pid} = GenServer.start(Listener, :ok, name: :s1_flapping_test_unique)
-    
+
     # Monitor it
     ref = Process.monitor(pid)
-    
+
     # Get the current listen socket
     socket = :sys.get_state(pid)
-    
+
     # Simulate a sudden socket closure
     :gen_tcp.close(socket)
-    
+
     # It should terminate because of the fatal error in accept loop
     assert_receive {:DOWN, ^ref, :process, ^pid, :closed}, 1000
   end
@@ -162,9 +163,11 @@ defmodule DataDiode.S1.ListenerTest do
 
   test "handle_info with unexpected message logs and continues" do
     {:ok, socket} = :gen_tcp.listen(0, [])
+
     assert capture_log(fn ->
-      {:noreply, ^socket} = Listener.handle_info(:unexpected_message, socket)
-    end) =~ "unexpected message"
+             {:noreply, ^socket} = Listener.handle_info(:unexpected_message, socket)
+           end) =~ "unexpected message"
+
     :gen_tcp.close(socket)
   end
 

@@ -19,9 +19,9 @@ defmodule DataDiode.HealthAPI do
 
   import DataDiode.ConfigHelpers
 
-  plug Plug.Logger
-  plug :match
-  plug :dispatch
+  plug(Plug.Logger)
+  plug(:match)
+  plug(:dispatch)
 
   # Health endpoint
   get "/api/health" do
@@ -65,7 +65,10 @@ defmodule DataDiode.HealthAPI do
       trigger_graceful_restart()
       send_json(conn, 200, %{status: "restarting", message: "System will restart in 10 seconds"})
     else
-      send_json(conn, 403, %{error: "unauthorized", message: "Invalid or missing authentication token"})
+      send_json(conn, 403, %{
+        error: "unauthorized",
+        message: "Invalid or missing authentication token"
+      })
     end
   end
 
@@ -73,9 +76,16 @@ defmodule DataDiode.HealthAPI do
   post "/api/shutdown" do
     if authenticate_request(conn) do
       trigger_graceful_shutdown()
-      send_json(conn, 200, %{status: "shutting_down", message: "System will shutdown in 10 seconds"})
+
+      send_json(conn, 200, %{
+        status: "shutting_down",
+        message: "System will shutdown in 10 seconds"
+      })
     else
-      send_json(conn, 403, %{error: "unauthorized", message: "Invalid or missing authentication token"})
+      send_json(conn, 403, %{
+        error: "unauthorized",
+        message: "Invalid or missing authentication token"
+      })
     end
   end
 
@@ -136,14 +146,17 @@ defmodule DataDiode.HealthAPI do
   defp get_network_status do
     interfaces = DataDiode.NetworkGuard.check_network_interfaces()
 
-    handler_count = case Process.whereis(DataDiode.S1.HandlerSupervisor) do
-      nil -> 0
-      pid ->
-        case DynamicSupervisor.count_children(pid) do
-          %{active: count} -> count
-          _ -> 0
-        end
-    end
+    handler_count =
+      case Process.whereis(DataDiode.S1.HandlerSupervisor) do
+        nil ->
+          0
+
+        pid ->
+          case DynamicSupervisor.count_children(pid) do
+            %{active: count} -> count
+            _ -> 0
+          end
+      end
 
     %{
       interfaces: interfaces,
@@ -155,58 +168,80 @@ defmodule DataDiode.HealthAPI do
 
   defp get_storage_status do
     data_dir = data_dir()
+    df_info = get_disk_info(data_dir)
+    file_stats = get_file_stats(data_dir)
 
+    %{
+      data_directory: data_dir,
+      disk_usage: df_info,
+      file_count: file_stats.count,
+      oldest_file_age:
+        if(file_stats.oldest, do: DateTime.diff(DateTime.utc_now(), file_stats.oldest), else: nil),
+      newest_file_age:
+        if(file_stats.newest, do: DateTime.diff(DateTime.utc_now(), file_stats.newest), else: nil)
+    }
+  end
+
+  defp get_disk_info(data_dir) do
     {df_output, 0} = System.cmd("df", ["-h", data_dir])
     df_lines = String.split(df_output, "\n")
 
-    # Parse df output
-    df_info = case Enum.at(df_lines, 1) do
+    case Enum.at(df_lines, 1) do
       nil -> %{error: "Cannot parse df output"}
-      line ->
-        parts = String.split(line) |> Enum.filter(&(&1 != ""))
-        case parts do
-          [device, size, used, avail, use_pct, mount] ->
-            %{
-              device: device,
-              size: size,
-              used: used,
-              available: avail,
-              use_percent: String.trim_trailing(use_pct, "%"),
-              mount_point: mount
-            }
-          _ -> %{error: "Unexpected df format"}
-        end
+      line -> parse_df_line(line)
     end
+  end
 
-    # Get file count and ages
+  defp parse_df_line(line) do
+    parts = String.split(line) |> Enum.filter(&(&1 != ""))
+
+    case parts do
+      [device, size, used, avail, use_pct, mount] ->
+        %{
+          device: device,
+          size: size,
+          used: used,
+          available: avail,
+          use_percent: String.trim_trailing(use_pct, "%"),
+          mount_point: mount
+        }
+
+      _ ->
+        %{error: "Unexpected df format"}
+    end
+  end
+
+  defp get_file_stats(data_dir) do
     dat_files = Path.wildcard(Path.join(data_dir, "*.dat"))
-
     file_count = length(dat_files)
 
-    {oldest, newest} = if file_count > 0 do
-      mtimes = Enum.map(dat_files, fn file ->
+    if file_count > 0 do
+      {oldest, newest} = get_file_ages(dat_files)
+      %{count: file_count, oldest: oldest, newest: newest}
+    else
+      %{count: 0, oldest: nil, newest: nil}
+    end
+  end
+
+  defp get_file_ages(dat_files) do
+    mtimes =
+      Enum.map(dat_files, fn file ->
         case File.stat(file) do
           {:ok, stat} -> stat.mtime
           _ -> DateTime.from_unix!(0)
         end
       end)
 
-      {Enum.min(mtimes), Enum.max(mtimes)}
-    else
-      {nil, nil}
-    end
-
-    %{
-      data_directory: data_dir,
-      disk_usage: df_info,
-      file_count: file_count,
-      oldest_file_age: if(oldest, do: DateTime.diff(DateTime.utc_now(), oldest), else: nil),
-      newest_file_age: if(newest, do: DateTime.diff(DateTime.utc_now(), newest), else: nil)
-    }
+    {Enum.min(mtimes), Enum.max(mtimes)}
   end
 
   defp get_critical_processes do
-    critical_processes = [
+    list_critical_processes()
+    |> Enum.map(&get_process_status/1)
+  end
+
+  defp list_critical_processes do
+    [
       {DataDiode.S1.Listener, "S1.Listener"},
       {DataDiode.S2.Listener, "S2.Listener"},
       {DataDiode.S1.Encapsulator, "S1.Encapsulator"},
@@ -219,25 +254,27 @@ defmodule DataDiode.HealthAPI do
       {DataDiode.PowerMonitor, "PowerMonitor"},
       {DataDiode.MemoryGuard, "MemoryGuard"}
     ]
-
-    Enum.map(critical_processes, fn {module, name} ->
-      pid = Process.whereis(module)
-      alive = pid != nil and Process.alive?(pid)
-
-      info = if alive do
-        case :erlang.process_info(pid, :message_queue_len) do
-          {:message_queue_len, len} -> %{message_queue_len: len}
-          _ -> %{}
-        end
-      else
-        %{}
-      end
-
-      Map.put(info, :name, name)
-      |> Map.put(:alive, alive)
-      |> Map.put(:pid, if(alive, do: inspect(pid), else: nil))
-    end)
   end
+
+  defp get_process_status({module, name}) do
+    pid = Process.whereis(module)
+    alive = pid != nil and Process.alive?(pid)
+
+    info = collect_process_info(pid, alive)
+
+    Map.put(info, :name, name)
+    |> Map.put(:alive, alive)
+    |> Map.put(:pid, if(alive, do: inspect(pid), else: nil))
+  end
+
+  defp collect_process_info(pid, true) do
+    case :erlang.process_info(pid, :message_queue_len) do
+      {:message_queue_len, len} -> %{message_queue_len: len}
+      _ -> %{}
+    end
+  end
+
+  defp collect_process_info(_pid, _alive), do: %{}
 
   defp get_operational_metrics do
     DataDiode.Metrics.get_all()
@@ -245,8 +282,8 @@ defmodule DataDiode.HealthAPI do
 
   defp get_uptime_info do
     uptime_seconds = get_uptime_seconds()
-    days = div(uptime_seconds, 86400)
-    hours = div(rem(uptime_seconds, 86400), 3600)
+    days = div(uptime_seconds, 86_400)
+    hours = div(rem(uptime_seconds, 86_400), 3600)
     minutes = div(rem(uptime_seconds, 3600), 60)
 
     %{
@@ -257,38 +294,51 @@ defmodule DataDiode.HealthAPI do
   end
 
   defp get_overall_status do
-    # Determine overall health status
     env = get_environmental_status()
     memory = DataDiode.MemoryGuard.get_memory_usage()
     storage = get_storage_status()
+    processes = get_critical_processes()
 
     cond do
-      env[:status] == :critical_hot or env[:status] == :critical_cold ->
-        :critical
-
-      env[:status] == :warning_hot or env[:status] == :warning_cold ->
-        :warning
-
-      memory.percent >= 90 ->
-        :critical
-
-      memory.percent >= 80 ->
-        :warning
-
-      storage.disk_usage != %{} and
-        String.to_integer(storage.disk_usage.use_percent || "0") >= 95 ->
-        :critical
-
-      storage.disk_usage != %{} and
-        String.to_integer(storage.disk_usage.use_percent || "0") >= 90 ->
-        :warning
-
-      Enum.all?(get_critical_processes(), & &1[:alive]) ->
-        :healthy
-
-      true ->
-        :degraded
+      critical_environment?(env) -> :critical
+      warning_environment?(env) -> :warning
+      critical_memory?(memory) -> :critical
+      warning_memory?(memory) -> :warning
+      critical_storage?(storage) -> :critical
+      warning_storage?(storage) -> :warning
+      all_processes_alive?(processes) -> :healthy
+      true -> :degraded
     end
+  end
+
+  defp critical_environment?(env) do
+    env[:status] == :critical_hot or env[:status] == :critical_cold
+  end
+
+  defp warning_environment?(env) do
+    env[:status] == :warning_hot or env[:status] == :warning_cold
+  end
+
+  defp critical_memory?(memory) do
+    memory.percent >= 90
+  end
+
+  defp warning_memory?(memory) do
+    memory.percent >= 80
+  end
+
+  defp critical_storage?(storage) do
+    storage.disk_usage != %{} and
+      String.to_integer(storage.disk_usage.use_percent || "0") >= 95
+  end
+
+  defp warning_storage?(storage) do
+    storage.disk_usage != %{} and
+      String.to_integer(storage.disk_usage.use_percent || "0") >= 90
+  end
+
+  defp all_processes_alive?(processes) do
+    Enum.all?(processes, & &1[:alive])
   end
 
   # Utility functions
@@ -308,8 +358,8 @@ defmodule DataDiode.HealthAPI do
 
   defp get_uptime_string do
     uptime_s = get_uptime_seconds()
-    days = div(uptime_s, 86400)
-    hours = div(rem(uptime_s, 86400), 3600)
+    days = div(uptime_s, 86_400)
+    hours = div(rem(uptime_s, 86_400), 3600)
     minutes = div(rem(uptime_s, 3600), 60)
 
     "#{days}d #{hours}h #{minutes}m"
@@ -317,6 +367,7 @@ defmodule DataDiode.HealthAPI do
 
   defp get_start_time do
     uptime_s = get_uptime_seconds()
+
     DateTime.utc_now()
     |> DateTime.add(-uptime_s)
     |> DateTime.to_iso8601()
@@ -362,7 +413,8 @@ defmodule DataDiode.HealthAPI do
   defp trigger_graceful_restart do
     spawn(fn ->
       Logger.warning("HealthAPI: Graceful restart requested via API")
-      Process.sleep(10_000)  # Give time for response
+      # Give time for response
+      Process.sleep(10_000)
       System.cmd("shutdown", ["-r", "+1"])
     end)
   end
@@ -370,7 +422,8 @@ defmodule DataDiode.HealthAPI do
   defp trigger_graceful_shutdown do
     spawn(fn ->
       Logger.warning("HealthAPI: Graceful shutdown requested via API")
-      Process.sleep(10_000)  # Give time for response
+      # Give time for response
+      Process.sleep(10_000)
       System.cmd("shutdown", ["-h", "+1"])
     end)
   end

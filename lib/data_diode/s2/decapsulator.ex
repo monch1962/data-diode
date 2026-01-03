@@ -1,11 +1,20 @@
 defmodule DataDiode.S2.Decapsulator do
+  @moduledoc """
+  Decapsulates UDP packets from Service 1 and writes to secure storage.
+
+  Extracts original TCP payload with source IP/port metadata.
+  Implements integrity checking via CRC32 checksums.
+  """
+
   require Logger
 
   # OpenTelemetry Tracing
   import OpenTelemetry.Tracer
 
   alias DataDiode.ConfigHelpers
+  alias DataDiode.Metrics
   alias DataDiode.NetworkHelpers
+  alias DataDiode.S2.HeartbeatMonitor
 
   # --------------------------------------------------------------------------
   # API Function
@@ -19,30 +28,44 @@ defmodule DataDiode.S2.Decapsulator do
     with_span "diode_s2_parse_header", [] do
       case parse_header(packet) do
         {:ok, src_ip, src_port, payload} ->
-          set_attributes(%{
-            "diode.source_ip" => src_ip,
-            "diode.source_port" => src_port
-          })
-          Logger.info("S2: Decapsulated packet from #{src_ip}:#{src_port}. Payload size: #{byte_size(payload)} bytes.")
-          
-          if payload == "HEARTBEAT" do
-            DataDiode.S2.HeartbeatMonitor.heartbeat_received()
-            :ok
-          else
-            case write_to_secure_storage(src_ip, src_port, payload) do
-              :ok -> :ok
-              {:error, reason} ->
-                DataDiode.Metrics.inc_errors()
-                {:error, reason}
-            end
-          end
+          handle_decapsulated_packet(src_ip, src_port, payload)
 
         {:error, reason} ->
-          DataDiode.Metrics.inc_errors()
-          record_exception(%RuntimeError{message: to_string(reason)}) # Record exception in the span
+          Metrics.inc_errors()
+          # Record exception in the span
+          record_exception(%RuntimeError{message: to_string(reason)})
           Logger.error("S2: Failed to parse header: #{reason}")
           {:error, reason}
       end
+    end
+  end
+
+  defp handle_decapsulated_packet(src_ip, src_port, payload) do
+    set_attributes(%{
+      "diode.source_ip" => src_ip,
+      "diode.source_port" => src_port
+    })
+
+    Logger.info(
+      "S2: Decapsulated packet from #{src_ip}:#{src_port}. Payload size: #{byte_size(payload)} bytes."
+    )
+
+    process_packet_payload(src_ip, src_port, payload)
+  end
+
+  defp process_packet_payload(_src_ip, _src_port, "HEARTBEAT") do
+    HeartbeatMonitor.heartbeat_received()
+    :ok
+  end
+
+  defp process_packet_payload(src_ip, src_port, payload) do
+    case write_to_secure_storage(src_ip, src_port, payload) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Metrics.inc_errors()
+        {:error, reason}
     end
   end
 
@@ -73,7 +96,6 @@ defmodule DataDiode.S2.Decapsulator do
     {:error, :invalid_packet_size_or_missing_checksum}
   end
 
-
   # --------------------------------------------------------------------------
   # Secure Storage Logic (Hardened)
   # --------------------------------------------------------------------------
@@ -98,12 +120,14 @@ defmodule DataDiode.S2.Decapsulator do
             :ok ->
               Logger.debug("S2: Atomic write successful: #{file_name}")
               :ok
+
             {:error, reason} ->
               Logger.error("S2: Atomic rename failed for #{file_name}: #{inspect(reason)}")
               # Cleanup partial file if possible
               File.rm(temp_name)
               {:error, reason}
           end
+
         {:error, reason} ->
           Logger.error("S2: Secure write failed for #{temp_name}: #{inspect(reason)}")
           {:error, reason}
@@ -116,6 +140,10 @@ defmodule DataDiode.S2.Decapsulator do
     # even if clock jumps back (e.g. reboot to 1970) and unique_integer resets.
     unique = System.unique_integer([:positive, :monotonic])
     random_token = :crypto.strong_rand_bytes(4) |> Base.encode16()
-    Path.join(ConfigHelpers.data_dir(), "data_#{:os.system_time(:millisecond)}_#{unique}_#{random_token}_#{port}.dat")
+
+    Path.join(
+      ConfigHelpers.data_dir(),
+      "data_#{:os.system_time(:millisecond)}_#{unique}_#{random_token}_#{port}.dat"
+    )
   end
 end

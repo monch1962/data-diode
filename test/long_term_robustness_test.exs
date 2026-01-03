@@ -9,6 +9,7 @@ defmodule DataDiode.LongTermRobustnessTest do
 
   defp wait_for_death(pid, count \\ 20)
   defp wait_for_death(_pid, 0), do: :ok
+
   defp wait_for_death(pid, count) do
     if Process.alive?(pid) do
       Process.sleep(20)
@@ -23,28 +24,32 @@ defmodule DataDiode.LongTermRobustnessTest do
     # 1. Setup real socket for state
     {:ok, l} = :gen_tcp.listen(0, [:binary, active: false])
     {:ok, port} = :inet.port(l)
-    {:ok, c} = :gen_tcp.connect({127,0,0,1}, port, [:binary, active: false])
+    {:ok, c} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
     {:ok, s} = :gen_tcp.accept(l)
     {:ok, pid} = TCPHandler.start_link(s)
 
     # Triggering Oversized Packet
     capture_log(fn ->
-      send(pid, {:tcp, s, <<0::8_388_616>>}) # 1MB + 1
+      # 1MB + 1
+      send(pid, {:tcp, s, <<0::8_388_616>>})
       _ = :sys.get_state(pid)
     end) =~ "S1: Dropping oversized packet"
 
     # Triggering TCP Error
     Process.flag(:trap_exit, true)
+
     capture_log(fn ->
       send(pid, {:tcp_error, s, :etimedout})
       wait_for_death(pid)
     end) =~ "S1: TCP error"
+
     Process.flag(:trap_exit, false)
 
     # Start new for unexpected message
-    {:ok, _c2} = :gen_tcp.connect({127,0,0,1}, port, [:binary, active: false])
+    {:ok, _c2} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
     {:ok, s2} = :gen_tcp.accept(l)
     {:ok, pid2} = TCPHandler.start_link(s2)
+
     capture_log(fn ->
       send(pid2, :unknown_msg)
       _ = :sys.get_state(pid2)
@@ -57,13 +62,14 @@ defmodule DataDiode.LongTermRobustnessTest do
     end) =~ "S1: Connection closed"
 
     # Coverage for handle_info(:accept_loop, state)
-    {:ok, c3} = :gen_tcp.connect({127,0,0,1}, port, [:binary, active: false])
+    {:ok, c3} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
     {:ok, s3} = :gen_tcp.accept(l)
     {:ok, pid3} = TCPHandler.start_link(s3)
     {:noreply, _} = TCPHandler.handle_info(:accept_loop, %{socket: s3, src_ip: "127.0.0.1"})
 
     # Coverage for activation failure (peername error)
     :gen_tcp.close(s3)
+
     capture_log(fn ->
       {:stop, :normal, _} = TCPHandler.handle_info(:activate, %{socket: s3})
     end) =~ "S1: Client disconnected before activation"
@@ -75,7 +81,7 @@ defmodule DataDiode.LongTermRobustnessTest do
   @tag :robustness
   test "S1.Listener exhaustive branch coverage" do
     mock_socket = :gen_udp.open(0) |> elem(1)
-    
+
     # Unexpected msg
     capture_log(fn ->
       S1Listener.handle_info(:garbage, mock_socket)
@@ -83,6 +89,7 @@ defmodule DataDiode.LongTermRobustnessTest do
 
     # Fatal error
     :gen_udp.close(mock_socket)
+
     capture_log(fn ->
       S1Listener.handle_info(:accept_loop, mock_socket)
     end) =~ "S1: Listener socket fatal error"
@@ -91,17 +98,18 @@ defmodule DataDiode.LongTermRobustnessTest do
   @tag :robustness
   test "S2.Listener exhaustive branch coverage" do
     mock_socket = :gen_udp.open(0) |> elem(1)
-    
+
     # Fatal UDP error
     capture_log(fn ->
-      {:stop, :ebadf, ^mock_socket} = S2Listener.handle_info({:udp_error, mock_socket, :ebadf}, mock_socket)
+      {:stop, :ebadf, ^mock_socket} =
+        S2Listener.handle_info({:udp_error, mock_socket, :ebadf}, mock_socket)
     end) =~ "S2: UDP socket error: :ebadf"
 
     # Unexpected msg
     capture_log(fn ->
       S2Listener.handle_info(:unknown, mock_socket)
     end) =~ "S2: Received unexpected message: :unknown"
-    
+
     # Passive re-arm
     {:noreply, ^mock_socket} = S2Listener.handle_info({:udp_passive, mock_socket}, mock_socket)
 
@@ -119,14 +127,17 @@ defmodule DataDiode.LongTermRobustnessTest do
   @tag :soak
   test "system handles connection churn" do
     app_port = S1Listener.port()
+
     if app_port do
       initial = Process.list() |> length()
+
       for _ <- 1..5 do
-        case :gen_tcp.connect({127,0,0,1}, app_port, []) do
+        case :gen_tcp.connect({127, 0, 0, 1}, app_port, []) do
           {:ok, s} -> :gen_tcp.close(s)
           _ -> :ok
         end
       end
+
       Process.sleep(200)
       final = Process.list() |> length()
       assert_in_delta initial, final, 10

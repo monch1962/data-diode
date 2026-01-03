@@ -31,7 +31,11 @@ defmodule DataDiode.S2.HeartbeatMonitor do
   @impl true
   def handle_info(:timeout, state) do
     timeout = get_timeout()
-    Logger.error("S2: Critical Failure! Channel heartbeat missing for > 6 minutes. The diode path may be obstructed.")
+
+    Logger.error(
+      "S2: Critical Failure! Channel heartbeat missing for > 6 minutes. The diode path may be obstructed."
+    )
+
     # We continue monitoring and will log again if it remains timed out
     {:noreply, state, timeout}
   end

@@ -12,8 +12,7 @@ defmodule DataDiode.PowerMonitorTest do
       %{temp_dir: temp_dir, power_dir: power_dir, battery_level: level} =
         setup_ups_battery(75, "Discharging")
 
-      Application.put_env(:data_diode, :power_supply_path,
-        Path.dirname(power_dir))
+      Application.put_env(:data_diode, :power_supply_path, Path.dirname(power_dir))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -40,8 +39,7 @@ defmodule DataDiode.PowerMonitorTest do
       %{temp_dir: temp_dir, power_dir: power_dir, battery_level: level} =
         setup_low_ups()
 
-      Application.put_env(:data_diode, :power_supply_path,
-        Path.dirname(power_dir))
+      Application.put_env(:data_diode, :power_supply_path, Path.dirname(power_dir))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -69,8 +67,7 @@ defmodule DataDiode.PowerMonitorTest do
       %{temp_dir: temp_dir, power_dir: power_dir, battery_level: level} =
         setup_critical_ups()
 
-      Application.put_env(:data_diode, :power_supply_path,
-        Path.dirname(power_dir))
+      Application.put_env(:data_diode, :power_supply_path, Path.dirname(power_dir))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -135,8 +132,7 @@ defmodule DataDiode.PowerMonitorTest do
     setup do
       %{temp_dir: temp_dir, power_dir: power_dir} = setup_ac_power()
 
-      Application.put_env(:data_diode, :power_supply_path,
-        Path.dirname(power_dir))
+      Application.put_env(:data_diode, :power_supply_path, Path.dirname(power_dir))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
@@ -212,8 +208,7 @@ defmodule DataDiode.PowerMonitorTest do
     setup do
       %{temp_dir: temp_dir, power_dir: power_dir} = setup_ups_battery(75, "Discharging")
 
-      Application.put_env(:data_diode, :power_supply_path,
-        Path.dirname(power_dir))
+      Application.put_env(:data_diode, :power_supply_path, Path.dirname(power_dir))
 
       on_exit(fn ->
         DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})

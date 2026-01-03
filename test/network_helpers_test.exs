@@ -150,9 +150,9 @@ defmodule DataDiode.NetworkHelpersTest do
       assert {:active, false} in options
       # Should not include :ip option
       refute Enum.any?(options, fn
-        {:ip, _} -> true
-        _ -> false
-      end)
+               {:ip, _} -> true
+               _ -> false
+             end)
     end
   end
 
@@ -161,30 +161,36 @@ defmodule DataDiode.NetworkHelpersTest do
       options = NetworkHelpers.udp_listen_options(nil)
 
       assert :binary in options
-      assert {active, :once} = Enum.find(options, fn
-        {:active, _} -> true
-        _ -> false
-      end)
+
+      assert {active, :once} =
+               Enum.find(options, fn
+                 {:active, _} -> true
+                 _ -> false
+               end)
     end
 
     test "returns base options when ip is :any" do
       options = NetworkHelpers.udp_listen_options(:any)
 
       assert :binary in options
-      assert {active, :once} = Enum.find(options, fn
-        {:active, _} -> true
-        _ -> false
-      end)
+
+      assert {active, :once} =
+               Enum.find(options, fn
+                 {:active, _} -> true
+                 _ -> false
+               end)
     end
 
     test "returns base options when ip is '0.0.0.0'" do
       options = NetworkHelpers.udp_listen_options("0.0.0.0")
 
       assert :binary in options
-      assert {active, :once} = Enum.find(options, fn
-        {:active, _} -> true
-        _ -> false
-      end)
+
+      assert {active, :once} =
+               Enum.find(options, fn
+                 {:active, _} -> true
+                 _ -> false
+               end)
     end
 
     test "includes IP when valid IP provided" do
@@ -203,15 +209,18 @@ defmodule DataDiode.NetworkHelpersTest do
       options = NetworkHelpers.udp_listen_options("invalid-ip")
 
       assert :binary in options
-      assert {active, :once} = Enum.find(options, fn
-        {:active, _} -> true
-        _ -> false
-      end)
+
+      assert {active, :once} =
+               Enum.find(options, fn
+                 {:active, _} -> true
+                 _ -> false
+               end)
+
       # Should not include :ip option
       refute Enum.any?(options, fn
-        {:ip, _} -> true
-        _ -> false
-      end)
+               {:ip, _} -> true
+               _ -> false
+             end)
     end
   end
 end

@@ -15,7 +15,8 @@ defmodule DataDiode.DiskCleaner do
 
   alias DataDiode.ConfigHelpers
 
-  @interval_ms 3_600_000  # 1 hour
+  # 1 hour
+  @interval_ms 3_600_000
   @free_threshold_percent 15
   @free_critical_percent 5
 
@@ -68,9 +69,11 @@ defmodule DataDiode.DiskCleaner do
   def handle_info(:check_integrity, state) do
     Logger.debug("DiskCleaner: Checking data integrity...")
     corrupt_count = verify_data_integrity(ConfigHelpers.data_dir())
+
     if corrupt_count > 0 do
       Logger.warning("DiskCleaner: Found and removed #{corrupt_count} corrupt files")
     end
+
     schedule_integrity_check()
     {:noreply, state}
   end
@@ -82,12 +85,14 @@ defmodule DataDiode.DiskCleaner do
   end
 
   defp schedule_log_rotation do
-    interval = Application.get_env(:data_diode, :log_rotation_interval, 86_400_000)  # 24 hours
+    # 24 hours
+    interval = Application.get_env(:data_diode, :log_rotation_interval, 86_400_000)
     Process.send_after(self(), :rotate_logs, interval)
   end
 
   defp schedule_integrity_check do
-    interval = Application.get_env(:data_diode, :integrity_check_interval, 7_200_000)  # 2 hours
+    # 2 hours
+    interval = Application.get_env(:data_diode, :integrity_check_interval, 7_200_000)
     Process.send_after(self(), :check_integrity, interval)
   end
 
@@ -97,28 +102,29 @@ defmodule DataDiode.DiskCleaner do
     multiplier = get_retention_multiplier(health)
     batch_size = trunc(ConfigHelpers.disk_cleanup_batch_size() * multiplier)
 
-    Logger.info("DiskCleaner: Smart cleanup with retention multiplier #{multiplier} (batch size: #{batch_size})")
+    Logger.info(
+      "DiskCleaner: Smart cleanup with retention multiplier #{multiplier} (batch size: #{batch_size})"
+    )
 
     cleanup_disk(path, batch_size)
   end
 
   defp get_retention_multiplier(health) do
     # Check environmental conditions
-    env_status = try do
-      DataDiode.EnvironmentalMonitor.monitor_all_zones()[:status]
-    rescue
-      _ -> :unknown
-    end
+    env_status =
+      try do
+        DataDiode.EnvironmentalMonitor.monitor_all_zones()[:status]
+      rescue
+        _ -> :unknown
+      end
 
     # Keep MORE data when system is under stress
     cond do
       # Hot or cold - system might be unstable
       env_status == :critical_hot or env_status == :warning_hot -> 2.0
       env_status == :critical_cold or env_status == :warning_cold -> 2.0
-
       # System unhealthy - preserve for forensics
       health != :healthy -> 2.0
-
       # Normal conditions
       true -> 1.0
     end
@@ -133,10 +139,11 @@ defmodule DataDiode.DiskCleaner do
       DataDiode.S2.Decapsulator
     ]
 
-    all_alive = Enum.all?(critical, fn mod ->
-      pid = Process.whereis(mod)
-      pid != nil and Process.alive?(pid)
-    end)
+    all_alive =
+      Enum.all?(critical, fn mod ->
+        pid = Process.whereis(mod)
+        pid != nil and Process.alive?(pid)
+      end)
 
     if all_alive, do: :healthy, else: :degraded
   end
@@ -145,36 +152,47 @@ defmodule DataDiode.DiskCleaner do
   defp emergency_cleanup(path) do
     Logger.error("DiskCleaner: EMERGENCY cleanup - keeping only last hour of data")
 
-    cutoff = DateTime.utc_now() |> DateTime.add(-3600)  # 1 hour ago
+    # 1 hour ago
+    cutoff = DateTime.utc_now() |> DateTime.add(-3600)
 
     deleted_count =
       path
       |> Path.join("*.dat")
       |> Path.wildcard()
-      |> Enum.count(fn file ->
-        case File.stat(file) do
-          {:ok, %{mtime: mtime}} ->
-            # Convert mtime tuple to DateTime for comparison
-            mtime_datetime = NaiveDateTime.from_erl!(mtime) |> DateTime.from_naive!("Etc/UTC")
-            if DateTime.compare(mtime_datetime, cutoff) == :lt do
-              case File.rm(file) do
-                :ok ->
-                  Logger.warning("DiskCleaner: Emergency delete: #{file}")
-                  true
-                _ ->
-                  false
-              end
-            else
-              false
-            end
-
-          _ ->
-            false
-        end
-      end)
+      |> Enum.count(&delete_if_old?(&1, cutoff))
 
     Logger.error("DiskCleaner: Emergency cleanup deleted #{deleted_count} files")
     deleted_count
+  end
+
+  defp delete_if_old?(file, cutoff) do
+    if file_older_than?(file, cutoff) do
+      delete_file(file)
+    else
+      false
+    end
+  end
+
+  defp file_older_than?(file, cutoff) do
+    case File.stat(file) do
+      {:ok, %{mtime: mtime}} ->
+        mtime_datetime = NaiveDateTime.from_erl!(mtime) |> DateTime.from_naive!("Etc/UTC")
+        DateTime.compare(mtime_datetime, cutoff) == :lt
+
+      _ ->
+        false
+    end
+  end
+
+  defp delete_file(file) do
+    case File.rm(file) do
+      :ok ->
+        Logger.warning("DiskCleaner: Emergency delete: #{file}")
+        true
+
+      _ ->
+        false
+    end
   end
 
   @doc """
@@ -193,7 +211,9 @@ defmodule DataDiode.DiskCleaner do
           nil -> 100
           val -> 100 - (Integer.parse(val) |> elem(0))
         end
-      _ -> 100
+
+      _ ->
+        100
     end
   end
 

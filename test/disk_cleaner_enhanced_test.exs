@@ -4,7 +4,12 @@ defmodule DataDiode.DiskCleanerEnhancedTest do
 
   # Simple temporary directory creation
   defp create_temp_dir(prefix) do
-    temp_dir = Path.join([System.tmp_dir!(), "data_diode_test_#{prefix}_#{System.unique_integer([:positive])}"])
+    temp_dir =
+      Path.join([
+        System.tmp_dir!(),
+        "data_diode_test_#{prefix}_#{System.unique_integer([:positive])}"
+      ])
+
     File.mkdir_p!(temp_dir)
     temp_dir
   end
@@ -80,7 +85,7 @@ defmodule DataDiode.DiskCleanerEnhancedTest do
 
       # Files should still exist (cleanup keeps some files based on retention)
       dat_files = Path.wildcard(Path.join(temp_dir, "*.dat"))
-      assert length(dat_files) >= 0
+      assert is_list(dat_files)
     end
 
     test "continues after emergency cleanup" do
@@ -125,7 +130,10 @@ defmodule DataDiode.DiskCleanerEnhancedTest do
         # Timestamp
         64::unsigned-big-integer-size(64),
         # Source IP
-        192::8, 168::8, 1::8, 100::8,
+        192::8,
+        168::8,
+        1::8,
+        100::8,
         # Source port
         8080::16-big,
         # Payload
@@ -172,10 +180,11 @@ defmodule DataDiode.DiskCleanerEnhancedTest do
 
       Enum.each(health_states, fn health ->
         # The retention multiplier should be higher when system is unhealthy
-        multiplier = case health do
-          :healthy -> 1.0
-          _ -> 2.0
-        end
+        multiplier =
+          case health do
+            :healthy -> 1.0
+            _ -> 2.0
+          end
 
         assert is_float(multiplier)
         assert multiplier >= 1.0
@@ -188,7 +197,8 @@ defmodule DataDiode.DiskCleanerEnhancedTest do
       temp_dir = create_temp_dir("periodic")
 
       Application.put_env(:data_diode, :data_dir, temp_dir)
-      Application.put_env(:data_diode, :disk_cleaner_interval, 100)  # 100ms for testing
+      # 100ms for testing
+      Application.put_env(:data_diode, :disk_cleaner_interval, 100)
 
       on_exit(fn ->
         File.rm_rf!(temp_dir)
@@ -252,12 +262,13 @@ defmodule DataDiode.DiskCleanerEnhancedTest do
       files_before = length(Path.wildcard(Path.join(temp_dir, "*.dat")))
 
       # Delete oldest (first created)
-      oldest = Path.wildcard(Path.join(temp_dir, "*.dat"))
-      |> Enum.sort_by(fn f ->
-        {:ok, stat} = File.stat(f)
-        stat.mtime
-      end)
-      |> hd()
+      oldest =
+        Path.wildcard(Path.join(temp_dir, "*.dat"))
+        |> Enum.sort_by(fn f ->
+          {:ok, stat} = File.stat(f)
+          stat.mtime
+        end)
+        |> hd()
 
       File.rm!(oldest)
 

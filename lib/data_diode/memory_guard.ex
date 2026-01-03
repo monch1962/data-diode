@@ -16,11 +16,16 @@ defmodule DataDiode.MemoryGuard do
   use GenServer
   require Logger
 
-  @memory_check_interval 300_000  # 5 minutes
-  @memory_warning_threshold 80  # 80%
-  @memory_critical_threshold 90  # 90%
-  @growth_rate_warning 0.5  # 50% growth since baseline
-  @baseline_samples 5  # Number of samples to establish baseline
+  # 5 minutes
+  @memory_check_interval 300_000
+  # 80%
+  @memory_warning_threshold 80
+  # 90%
+  @memory_critical_threshold 90
+  # 50% growth since baseline
+  @growth_rate_warning 0.5
+  # Number of samples to establish baseline
+  @baseline_samples 5
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
@@ -45,8 +50,12 @@ defmodule DataDiode.MemoryGuard do
 
       state.baseline != nil ->
         growth_rate = calculate_growth_rate(state.baseline, current)
+
         if growth_rate > @growth_rate_warning do
-          Logger.warning("MemoryGuard: Memory leak detected (#{:erlang.float_to_binary(growth_rate * 100, decimals: 1)}% growth)")
+          Logger.warning(
+            "MemoryGuard: Memory leak detected (#{:erlang.float_to_binary(growth_rate * 100, decimals: 1)}% growth)"
+          )
+
           log_memory_analysis()
         end
 
@@ -121,7 +130,11 @@ defmodule DataDiode.MemoryGuard do
     if length(new_samples) >= @baseline_samples do
       # Calculate baseline from samples
       baseline = calculate_baseline(new_samples)
-      Logger.info("MemoryGuard: Baseline established: #{baseline.percent}% used (#{div(baseline.used, 1024)}MB)")
+
+      Logger.info(
+        "MemoryGuard: Baseline established: #{baseline.percent}% used (#{div(baseline.used, 1024)}MB)"
+      )
+
       %{new_state | baseline: baseline, samples: []}
     else
       new_state
@@ -157,7 +170,8 @@ defmodule DataDiode.MemoryGuard do
   defp parse_meminfo(meminfo, key, default \\ nil) do
     case Regex.run(~r/#{key}\s+(\d+)\s+kB/, meminfo) do
       [_, value] ->
-        String.to_integer(value) * 1024  # Convert KB to bytes
+        # Convert KB to bytes
+        String.to_integer(value) * 1024
 
       nil ->
         if default, do: default, else: 0
@@ -178,6 +192,7 @@ defmodule DataDiode.MemoryGuard do
     after_gc = :erlang.memory(:total)
 
     freed = before - after_gc
+
     if freed > 0 do
       Logger.info("MemoryGuard: Garbage collection freed #{div(freed, 1_048_576)}MB")
     end
@@ -220,7 +235,11 @@ defmodule DataDiode.MemoryGuard do
     system_memory = get_memory_usage()
 
     Logger.info("MemoryGuard: === Memory Analysis ===")
-    Logger.info("MemoryGuard: System: #{system_memory.percent}% used (#{div(system_memory.used, 1_048_576)}MB / #{div(system_memory.total, 1_048_576)}MB)")
+
+    Logger.info(
+      "MemoryGuard: System: #{system_memory.percent}% used (#{div(system_memory.used, 1_048_576)}MB / #{div(system_memory.total, 1_048_576)}MB)"
+    )
+
     Logger.info("MemoryGuard: Erlang VM: #{div(vm_memory[:total], 1_048_576)}MB")
     Logger.info("MemoryGuard:   - Total: #{div(vm_memory[:total], 1_048_576)}MB")
     Logger.info("MemoryGuard:   - Processes: #{div(vm_memory[:processes], 1_048_576)}MB")
@@ -242,18 +261,7 @@ defmodule DataDiode.MemoryGuard do
     Logger.info("MemoryGuard: === Top #{count} Memory-Consuming Processes ===")
 
     :erlang.processes()
-    |> Enum.map(fn pid ->
-      case :erlang.process_info(pid, :memory) do
-        {:memory, mem} ->
-          name = case :erlang.process_info(pid, :registered_name) do
-            {:registered_name, name} -> inspect(name)
-            _ -> inspect(pid)
-          end
-          {name, mem}
-        _ ->
-          nil
-      end
-    end)
+    |> Enum.map(&get_process_memory/1)
     |> Enum.filter(& &1)
     |> Enum.sort_by(fn {_, mem} -> mem end, :desc)
     |> Enum.take(count)
@@ -262,10 +270,29 @@ defmodule DataDiode.MemoryGuard do
     end)
   end
 
+  defp get_process_memory(pid) do
+    case :erlang.process_info(pid, :memory) do
+      {:memory, mem} ->
+        name = get_process_name(pid)
+        {name, mem}
+
+      _ ->
+        nil
+    end
+  end
+
+  defp get_process_name(pid) do
+    case :erlang.process_info(pid, :registered_name) do
+      {:registered_name, name} -> inspect(name)
+      _ -> inspect(pid)
+    end
+  end
+
   defp log_memory_stats(state, current) do
     # Add to history
     entry = Map.put(current, :timestamp, System.system_time(:millisecond))
-    new_history = [entry | state.history] |> Enum.take(100)  # Keep last 100 samples
+    # Keep last 100 samples
+    new_history = [entry | state.history] |> Enum.take(100)
 
     %{state | history: new_history}
   end

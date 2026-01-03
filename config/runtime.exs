@@ -31,10 +31,18 @@ end
 allowed_str = System.get_env("ALLOWED_PROTOCOLS", "ANY")
 
 # Define valid protocol atoms to prevent atom table exhaustion
-valid_protocols = MapSet.new([
-  :any, :modbus, :dnp3, :mqtt, :snmp,
-  :opcua, :iec104, :bacnet, :ethernet_ip
-])
+valid_protocols =
+  MapSet.new([
+    :any,
+    :modbus,
+    :dnp3,
+    :mqtt,
+    :snmp,
+    :opcua,
+    :iec104,
+    :bacnet,
+    :ethernet_ip
+  ])
 
 protocol_list =
   allowed_str
@@ -44,15 +52,33 @@ protocol_list =
   |> Enum.map(fn protocol_str ->
     # Safely convert string to known atom, default to :any if unknown
     case protocol_str do
-      "any" -> :any
-      "modbus" -> :modbus
-      "dnp3" -> :dnp3
-      "mqtt" -> :mqtt
-      "snmp" -> :snmp
-      "opcua" -> :opcua
-      "iec104" -> :iec104
-      "bacnet" -> :bacnet
-      "ethernet_ip" -> :ethernet_ip
+      "any" ->
+        :any
+
+      "modbus" ->
+        :modbus
+
+      "dnp3" ->
+        :dnp3
+
+      "mqtt" ->
+        :mqtt
+
+      "snmp" ->
+        :snmp
+
+      "opcua" ->
+        :opcua
+
+      "iec104" ->
+        :iec104
+
+      "bacnet" ->
+        :bacnet
+
+      "ethernet_ip" ->
+        :ethernet_ip
+
       _ ->
         # Log warning for unknown protocol, default to allowing it as a string atom
         # but use try/rescue to safely create it
@@ -134,7 +160,8 @@ config :data_diode,
 # API configuration
 # Generate secure token with: openssl rand -hex 32
 config :data_diode,
-  health_api_auth_token: System.get_env("HEALTH_API_TOKEN", "insecure_change_this_token_in_production")
+  health_api_auth_token:
+    System.get_env("HEALTH_API_TOKEN", "insecure_change_this_token_in_production")
 
 # Alert file for power/environmental events
 config :data_diode,

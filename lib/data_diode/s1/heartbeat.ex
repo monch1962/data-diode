@@ -5,7 +5,10 @@ defmodule DataDiode.S1.Heartbeat do
   use GenServer
   require Logger
 
-  @interval_ms 300_000 # 5 minutes
+  alias DataDiode.S1.Encapsulator
+
+  # 5 minutes
+  @interval_ms 300_000
   @heartbeat_payload "HEARTBEAT"
 
   def start_link(opts \\ []) do
@@ -22,8 +25,8 @@ defmodule DataDiode.S1.Heartbeat do
   def handle_info(:send_heartbeat, state) do
     Logger.debug("S1: Generating end-to-end heartbeat.")
     # We send it via the Encapsulator as if it were a local packet
-    DataDiode.S1.Encapsulator.encapsulate_and_send("127.0.0.1", 0, @heartbeat_payload)
-    
+    Encapsulator.encapsulate_and_send("127.0.0.1", 0, @heartbeat_payload)
+
     schedule_heartbeat()
     {:noreply, state}
   end

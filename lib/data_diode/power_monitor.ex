@@ -15,10 +15,14 @@ defmodule DataDiode.PowerMonitor do
   use GenServer
   require Logger
 
-  @ups_check_interval 10_000  # 10 seconds
-  @battery_critical 10  # Shutdown at 10%
-  @battery_warning 30  # Low power mode at 30%
-  @battery_low 50  # Warning at 50%
+  # 10 seconds
+  @ups_check_interval 10_000
+  # Shutdown at 10%
+  @battery_critical 10
+  # Low power mode at 30%
+  @battery_warning 30
+  # Warning at 50%
+  @battery_low 50
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
@@ -79,7 +83,8 @@ defmodule DataDiode.PowerMonitor do
   defp check_sysfs_power do
     # Try to read from sysfs power supply class
     # Typically /sys/class/power_supply/
-    power_supply_path = Application.get_env(:data_diode, :power_supply_path, "/sys/class/power_supply/")
+    power_supply_path =
+      Application.get_env(:data_diode, :power_supply_path, "/sys/class/power_supply/")
 
     case File.ls(power_supply_path) do
       {:ok, supplies} ->
@@ -138,20 +143,27 @@ defmodule DataDiode.PowerMonitor do
 
     battery_level =
       case battery_charge do
-        nil -> :unknown
+        nil ->
+          :unknown
+
         val when is_binary(val) ->
           case Float.parse(val) do
             {num, _} -> trunc(num)
             :error -> :unknown
           end
-        val when is_number(val) -> trunc(val)
-        _ -> :unknown
+
+        val when is_number(val) ->
+          trunc(val)
+
+        _ ->
+          :unknown
       end
 
     on_battery =
       case ups_status do
         nil -> false
-        status -> String.contains?(status, "OB")  # OB = On Battery
+        # OB = On Battery
+        status -> String.contains?(status, "OB")
       end
 
     %{
@@ -174,56 +186,106 @@ defmodule DataDiode.PowerMonitor do
 
   # Status processing
 
-  defp process_ups_status(ups_status, state) do
-    cond do
-      # Critical battery - immediate graceful shutdown
-      is_number(ups_status.battery_level) and
-        ups_status.battery_level < @battery_critical and
-        ups_status.on_battery ->
-        Logger.error("PowerMonitor: Critical battery level (#{ups_status.battery_level}%)")
-        trigger_graceful_shutdown("Critical battery: #{ups_status.battery_level}%")
-
-      # Low battery warning
-      is_number(ups_status.battery_level) and
-        ups_status.battery_level < @battery_warning and
-        ups_status.on_battery ->
-        Logger.warning("PowerMonitor: Low battery (#{ups_status.battery_level}%)")
-        activate_low_power_mode()
-        notify_low_battery(ups_status.battery_level)
-
-      # Battery depleting
-      is_number(ups_status.battery_level) and
-        ups_status.battery_level < @battery_low and
-        ups_status.on_battery ->
-        Logger.warning("PowerMonitor: Battery level low (#{ups_status.battery_level}%)")
-        notify_low_battery(ups_status.battery_level)
-
-      # Switched to battery (power failure)
-      ups_status.on_battery and not state.on_battery ->
-        Logger.error("PowerMonitor: Power failure detected, now on battery")
-        notify_power_failure()
-
-      # Power restored
-      not ups_status.on_battery and state.on_battery ->
-        Logger.info("PowerMonitor: Power restored")
-        notify_power_restored()
-        deactivate_low_power_mode()
-
-      # Unknown status
-      ups_status == :unknown ->
-        Logger.debug("PowerMonitor: Unable to read UPS status")
-
-      true ->
-        :ok
-    end
+  defp process_ups_status(ups_status, state) when is_map(ups_status) do
+    handle_critical_battery(ups_status)
+    handle_low_battery(ups_status)
+    handle_battery_depleting(ups_status)
+    handle_power_transition(ups_status, state)
 
     %{
       state
       | battery_level: ups_status[:battery_level] || state.battery_level,
         on_battery: ups_status[:on_battery] || false,
-        power_status: if(ups_status.on_battery, do: :on_battery, else: :on_line)
+        power_status: if(ups_status[:on_battery], do: :on_battery, else: :on_line)
     }
   end
+
+  defp process_ups_status(:unknown, state) do
+    handle_unknown_status(:unknown)
+    state
+  end
+
+  defp handle_critical_battery(ups_status) do
+    if critical_battery?(ups_status) do
+      Logger.error("PowerMonitor: Critical battery level (#{ups_status.battery_level}%)")
+      trigger_graceful_shutdown("Critical battery: #{ups_status.battery_level}%")
+    end
+  end
+
+  defp handle_low_battery(ups_status) do
+    if low_battery_warning?(ups_status) do
+      Logger.warning("PowerMonitor: Low battery (#{ups_status.battery_level}%)")
+      activate_low_power_mode()
+      notify_low_battery(ups_status.battery_level)
+    end
+  end
+
+  defp handle_battery_depleting(ups_status) do
+    if battery_depleting?(ups_status) do
+      Logger.warning("PowerMonitor: Battery level low (#{ups_status.battery_level}%)")
+      notify_low_battery(ups_status.battery_level)
+    end
+  end
+
+  defp handle_power_transition(ups_status, state) do
+    cond do
+      power_failure?(ups_status, state) ->
+        Logger.error("PowerMonitor: Power failure detected, now on battery")
+        notify_power_failure()
+
+      power_restored?(ups_status, state) ->
+        Logger.info("PowerMonitor: Power restored")
+        notify_power_restored()
+        deactivate_low_power_mode()
+
+      true ->
+        :ok
+    end
+  end
+
+  defp handle_unknown_status(ups_status) do
+    if ups_status == :unknown do
+      Logger.debug("PowerMonitor: Unable to read UPS status")
+    end
+  end
+
+  # Helper functions for battery status checks
+
+  defp critical_battery?(ups_status) when is_map(ups_status) do
+    is_number(ups_status.battery_level) and
+      ups_status.battery_level < @battery_critical and
+      ups_status.on_battery
+  end
+
+  defp critical_battery?(_), do: false
+
+  defp low_battery_warning?(ups_status) when is_map(ups_status) do
+    is_number(ups_status.battery_level) and
+      ups_status.battery_level < @battery_warning and
+      ups_status.on_battery
+  end
+
+  defp low_battery_warning?(_), do: false
+
+  defp battery_depleting?(ups_status) when is_map(ups_status) do
+    is_number(ups_status.battery_level) and
+      ups_status.battery_level < @battery_low and
+      ups_status.on_battery
+  end
+
+  defp battery_depleting?(_), do: false
+
+  defp power_failure?(ups_status, state) when is_map(ups_status) do
+    Map.get(ups_status, :on_battery, false) and not state.on_battery
+  end
+
+  defp power_failure?(_, _), do: false
+
+  defp power_restored?(ups_status, state) when is_map(ups_status) do
+    not Map.get(ups_status, :on_battery, true) and state.on_battery
+  end
+
+  defp power_restored?(_, _), do: false
 
   # Actions
 
@@ -264,8 +326,10 @@ defmodule DataDiode.PowerMonitor do
 
     # Reduce cleanup interval to save disk writes
     current_interval = Application.get_env(:data_diode, :disk_cleaner_interval, 3_600_000)
+
     if current_interval < 10_800_000 do
-      Application.put_env(:data_diode, :disk_cleaner_interval, 10_800_000)  # 3 hours
+      # 3 hours
+      Application.put_env(:data_diode, :disk_cleaner_interval, 10_800_000)
       Logger.info("PowerMonitor: Reduced disk cleanup frequency")
     end
 
@@ -278,7 +342,8 @@ defmodule DataDiode.PowerMonitor do
     Logger.info("PowerMonitor: Deactivating low power mode")
 
     # Restore normal cleanup interval
-    Application.put_env(:data_diode, :disk_cleaner_interval, 3_600_000)  # 1 hour
+    # 1 hour
+    Application.put_env(:data_diode, :disk_cleaner_interval, 3_600_000)
 
     # Restore normal packet processing rate
     Application.put_env(:data_diode, :max_packets_per_sec, 1000)

@@ -18,7 +18,8 @@ defmodule DataDiode.HealthAPIMockTest do
     end
 
     test "formats uptime into human readable string" do
-      uptime_seconds = 90061  # 1 day, 1 hour, 1 minute
+      # 1 day, 1 hour, 1 minute
+      uptime_seconds = 90061
 
       days = div(uptime_seconds, 86400)
       hours = div(rem(uptime_seconds, 86400), 3600)
@@ -62,11 +63,12 @@ defmodule DataDiode.HealthAPIMockTest do
         available: 0
       }
 
-      percent = if memory.total > 0 do
-        (memory.used / memory.total * 100) |> Float.round(1)
-      else
-        0.0
-      end
+      percent =
+        if memory.total > 0 do
+          (memory.used / memory.total * 100) |> Float.round(1)
+        else
+          0.0
+        end
 
       assert percent == 0.0
     end
@@ -121,13 +123,14 @@ defmodule DataDiode.HealthAPIMockTest do
         all_processes_alive: true
       }
 
-      overall_status = cond do
-        conditions.temp_status == :critical_hot -> :critical
-        conditions.memory_percent >= 90 -> :critical
-        conditions.disk_percent >= 95 -> :critical
-        not conditions.all_processes_alive -> :degraded
-        true -> :healthy
-      end
+      overall_status =
+        cond do
+          conditions.temp_status == :critical_hot -> :critical
+          conditions.memory_percent >= 90 -> :critical
+          conditions.disk_percent >= 95 -> :critical
+          not conditions.all_processes_alive -> :degraded
+          true -> :healthy
+        end
 
       assert overall_status == :healthy
     end
@@ -140,15 +143,16 @@ defmodule DataDiode.HealthAPIMockTest do
         all_processes_alive: true
       }
 
-      overall_status = cond do
-        conditions.temp_status == :critical_hot -> :critical
-        conditions.temp_status == :warning_hot -> :warning
-        conditions.memory_percent >= 90 -> :critical
-        conditions.disk_percent >= 95 -> :critical
-        conditions.disk_percent >= 90 -> :warning
-        not conditions.all_processes_alive -> :degraded
-        true -> :healthy
-      end
+      overall_status =
+        cond do
+          conditions.temp_status == :critical_hot -> :critical
+          conditions.temp_status == :warning_hot -> :warning
+          conditions.memory_percent >= 90 -> :critical
+          conditions.disk_percent >= 95 -> :critical
+          conditions.disk_percent >= 90 -> :warning
+          not conditions.all_processes_alive -> :degraded
+          true -> :healthy
+        end
 
       assert overall_status == :warning
     end
@@ -161,13 +165,14 @@ defmodule DataDiode.HealthAPIMockTest do
         all_processes_alive: true
       }
 
-      overall_status = cond do
-        conditions.temp_status == :critical_hot -> :critical
-        conditions.memory_percent >= 90 -> :critical
-        conditions.disk_percent >= 95 -> :critical
-        not conditions.all_processes_alive -> :degraded
-        true -> :healthy
-      end
+      overall_status =
+        cond do
+          conditions.temp_status == :critical_hot -> :critical
+          conditions.memory_percent >= 90 -> :critical
+          conditions.disk_percent >= 95 -> :critical
+          not conditions.all_processes_alive -> :degraded
+          true -> :healthy
+        end
 
       assert overall_status == :critical
     end

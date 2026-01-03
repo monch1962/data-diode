@@ -19,7 +19,8 @@ defmodule DataDiode.NetworkHelpers do
   def parse_ip_address(""), do: :any
   def parse_ip_address("0.0.0.0"), do: :any
 
-  def parse_ip_address({a, b, c, d} = ip) when is_integer(a) and is_integer(b) and is_integer(c) and is_integer(d), do: ip
+  def parse_ip_address({a, b, c, d} = ip)
+      when is_integer(a) and is_integer(b) and is_integer(c) and is_integer(d), do: ip
 
   def parse_ip_address(ip_str) when is_binary(ip_str) do
     case :inet.parse_address(String.to_charlist(ip_str)) do
@@ -62,14 +63,16 @@ defmodule DataDiode.NetworkHelpers do
   Validates that a port number is within the valid range (0-65535).
   Returns {:ok, port} or {:error, {:invalid_port, value}}.
   """
-  @spec validate_port(integer() | any()) :: {:ok, 0..65535} | {:error, {:invalid_port, any()}}
-  def validate_port(port) when is_integer(port) and port >= 0 and port <= 65535, do: {:ok, port}
+  @spec validate_port(integer() | any()) :: {:ok, 0..65_535} | {:error, {:invalid_port, any()}}
+  def validate_port(port) when is_integer(port) and port >= 0 and port <= 65_535, do: {:ok, port}
   def validate_port(port), do: {:error, {:invalid_port, port}}
 
   @doc """
   Constructs TCP socket options with optional IP binding.
   """
-  @spec tcp_listen_options(binary() | nil | :any | :inet.ip_address()) :: [:gen_tcp.listen_option()]
+  @spec tcp_listen_options(binary() | nil | :any | :inet.ip_address()) :: [
+          :gen_tcp.listen_option()
+        ]
   def tcp_listen_options(ip \\ nil) do
     base = [:binary, :inet, {:reuseaddr, true}, {:active, false}]
 

@@ -23,9 +23,9 @@ defmodule DataDiode.DiskCleanerTest do
   test "cleanup_disk handles empty directory" do
     # Use /dev which exists but has no .dat files
     assert capture_log(fn ->
-      result = DiskCleaner.cleanup_disk("/dev")
-      assert is_integer(result)
-    end) =~ "No files found"
+             result = DiskCleaner.cleanup_disk("/dev")
+             assert is_integer(result)
+           end) =~ "No files found"
   end
 
   test "cleanup_disk deletes actual files" do
@@ -44,9 +44,9 @@ defmodule DataDiode.DiskCleanerTest do
 
       # Run cleanup and verify files were deleted
       assert capture_log(fn ->
-        result = DiskCleaner.cleanup_disk(test_dir)
-        assert result == 2
-      end) =~ "Cleaned up 2 old file(s)"
+               result = DiskCleaner.cleanup_disk(test_dir)
+               assert result == 2
+             end) =~ "Cleaned up 2 old file(s)"
 
       # Verify 2 files were deleted and 1 remains
       remaining_files = Path.wildcard(Path.join(test_dir, "*.dat"))
@@ -94,7 +94,8 @@ defmodule DataDiode.DiskCleanerTest do
       file3 = Path.join(test_dir, "file3.dat")
 
       File.write!(file1, "data1")
-      Process.sleep(10)  # Ensure different mtime
+      # Ensure different mtime
+      Process.sleep(10)
       File.write!(file2, "data2")
       Process.sleep(10)
       File.write!(file3, "data3")
@@ -118,9 +119,11 @@ defmodule DataDiode.DiskCleanerTest do
 
   setup do
     Application.put_env(:data_diode, :disk_cleaner_interval, 0)
+
     on_exit(fn ->
       Application.delete_env(:data_diode, :disk_cleaner_interval)
     end)
+
     :ok
   end
 

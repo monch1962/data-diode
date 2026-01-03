@@ -14,10 +14,14 @@ defmodule DataDiode.NetworkGuard do
   use GenServer
   require Logger
 
-  @interface_check_interval 30_000  # 30 seconds
-  @flapping_threshold 5  # 5 state changes
-  @flapping_window 300_000  # 5 minutes
-  @flapping_penalty_delay 60_000  # 1 minute penalty when flapping detected
+  # 30 seconds
+  @interface_check_interval 30_000
+  # 5 state changes
+  @flapping_threshold 5
+  # 5 minutes
+  @flapping_window 300_000
+  # 1 minute penalty when flapping detected
+  @flapping_penalty_delay 60_000
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
@@ -89,7 +93,10 @@ defmodule DataDiode.NetworkGuard do
 
       {output, _exit_code} ->
         # Interface doesn't exist or command failed
-        Logger.warning("NetworkGuard: Cannot check interface #{interface}: #{String.trim(output)}")
+        Logger.warning(
+          "NetworkGuard: Cannot check interface #{interface}: #{String.trim(output)}"
+        )
+
         %{up: false, interface: interface}
     end
   end
@@ -120,7 +127,10 @@ defmodule DataDiode.NetworkGuard do
       max_changes = max(s1_changes, s2_changes)
 
       if max_changes > @flapping_threshold do
-        Logger.error("NetworkGuard: Flapping detected! #{max_changes} changes in #{@flapping_window}ms")
+        Logger.error(
+          "NetworkGuard: Flapping detected! #{max_changes} changes in #{@flapping_window}ms"
+        )
+
         activate_flapping_protection(state)
       else
         state
@@ -157,40 +167,60 @@ defmodule DataDiode.NetworkGuard do
   # Network change handling
 
   defp handle_network_changes(state, current_state) do
-    s1_changed = state.interface_state.s1 != (if current_state.s1.up, do: :up, else: :down)
-    s2_changed = state.interface_state.s2 != (if current_state.s2.up, do: :up, else: :down)
+    s1_changed = state.interface_state.s1 != up_status(current_state.s1.up)
+    s2_changed = state.interface_state.s2 != up_status(current_state.s2.up)
 
     new_interface_state = %{
-      s1: if(current_state.s1.up, do: :up, else: :down),
-      s2: if(current_state.s2.up, do: :up, else: :down)
+      s1: up_status(current_state.s1.up),
+      s2: up_status(current_state.s2.up)
     }
 
+    # Handle interface state changes
+    handle_interface_change(state, :s1, current_state.s1, s1_changed)
+    handle_interface_change(state, :s2, current_state.s2, s2_changed)
+
+    %{state | interface_state: new_interface_state}
+  end
+
+  defp up_status(true), do: :up
+  defp up_status(false), do: :down
+
+  defp handle_interface_change(state, interface_key, current_info, changed?) do
+    previous_state = Map.get(state.interface_state, interface_key)
+    current_state = up_status(current_info.up)
+
     cond do
-      # S1 went down
-      s1_changed and not current_state.s1.up and state.interface_state.s1 == :up ->
-        Logger.warning("NetworkGuard: S1 interface (#{current_state.s1.interface}) went down")
-        if not state.flapping, do: attempt_interface_recovery(current_state.s1.interface)
+      # Interface went down
+      changed? and current_state == :down and previous_state == :up ->
+        log_interface_down(interface_key, current_info.interface)
+        maybe_attempt_recovery(state, current_info.interface)
 
-      # S1 came back up
-      s1_changed and current_state.s1.up and state.interface_state.s1 == :down ->
-        Logger.info("NetworkGuard: S1 interface (#{current_state.s1.interface}) recovered")
-        flush_arp_cache()
-
-      # S2 went down
-      s2_changed and not current_state.s2.up and state.interface_state.s2 == :up ->
-        Logger.warning("NetworkGuard: S2 interface (#{current_state.s2.interface}) went down")
-        if not state.flapping, do: attempt_interface_recovery(current_state.s2.interface)
-
-      # S2 came back up
-      s2_changed and current_state.s2.up and state.interface_state.s2 == :down ->
-        Logger.info("NetworkGuard: S2 interface (#{current_state.s2.interface}) recovered")
+      # Interface came back up
+      changed? and current_state == :up and previous_state == :down ->
+        log_interface_recovery(interface_key, current_info.interface)
         flush_arp_cache()
 
       true ->
         :ok
     end
+  end
 
-    %{state | interface_state: new_interface_state}
+  defp log_interface_down(:s1, interface),
+    do: Logger.warning("NetworkGuard: S1 interface (#{interface}) went down")
+
+  defp log_interface_down(:s2, interface),
+    do: Logger.warning("NetworkGuard: S2 interface (#{interface}) went down")
+
+  defp log_interface_recovery(:s1, interface),
+    do: Logger.info("NetworkGuard: S1 interface (#{interface}) recovered")
+
+  defp log_interface_recovery(:s2, interface),
+    do: Logger.info("NetworkGuard: S2 interface (#{interface}) recovered")
+
+  defp maybe_attempt_recovery(state, interface) do
+    unless state.flapping do
+      attempt_interface_recovery(interface)
+    end
   end
 
   defp attempt_interface_recovery(interface) do
@@ -210,7 +240,9 @@ defmodule DataDiode.NetworkGuard do
           flush_arp_cache()
 
         {output, exit_code} ->
-          Logger.error("NetworkGuard: Failed to reset interface #{interface}: #{String.trim(output)} (exit #{exit_code})")
+          Logger.error(
+            "NetworkGuard: Failed to reset interface #{interface}: #{String.trim(output)} (exit #{exit_code})"
+          )
       end
     else
       Logger.warning("NetworkGuard: Auto-recovery disabled, not attempting recovery")
@@ -225,7 +257,9 @@ defmodule DataDiode.NetworkGuard do
   # Scheduling
 
   defp schedule_check do
-    interval = Application.get_env(:data_diode, :network_check_interval, @interface_check_interval)
+    interval =
+      Application.get_env(:data_diode, :network_check_interval, @interface_check_interval)
+
     Process.send_after(self(), :check_interfaces, interval)
   end
 end

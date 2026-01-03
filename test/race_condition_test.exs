@@ -19,20 +19,22 @@ defmodule DataDiode.RaceConditionTest do
     {:ok, port} = :inet.port(socket)
 
     # 2. Fill up the Task Supervisor
-    tasks = Enum.map(1..200, fn _ ->
-      Task.Supervisor.async_nolink(DataDiode.S2.TaskSupervisor, fn ->
-        Process.sleep(1000)
+    tasks =
+      Enum.map(1..200, fn _ ->
+        Task.Supervisor.async_nolink(DataDiode.S2.TaskSupervisor, fn ->
+          Process.sleep(1000)
+        end)
       end)
-    end)
 
     # 3. Send the 201st packet.
     {:ok, sender} = :gen_udp.open(0)
     packet = <<127, 0, 0, 1, 0, 80, "overflow">>
-    
-    log = capture_log(fn ->
-      :ok = :gen_udp.send(sender, {127, 0, 0, 1}, port, packet)
-      Process.sleep(100)
-    end)
+
+    log =
+      capture_log(fn ->
+        :ok = :gen_udp.send(sender, {127, 0, 0, 1}, port, packet)
+        Process.sleep(100)
+      end)
 
     # VERIFY FIX: The log should now contain the error message
     assert log =~ "Failed to spawn processing task"
@@ -48,23 +50,25 @@ defmodule DataDiode.RaceConditionTest do
     path = "/tmp/diode_stress_v2"
     File.mkdir_p!(path)
     Application.put_env(:data_diode, :data_dir, path)
-    
+
     # Spawn 50 concurrent writers
-    writers = Enum.map(1..50, fn _ ->
-      Task.async(fn ->
-        Enum.each(1..20, fn i ->
-          DataDiode.S2.Decapsulator.process_packet(<<127,0,0,1, 80, 0,0,0,4, "data#{i}">>)
+    writers =
+      Enum.map(1..50, fn _ ->
+        Task.async(fn ->
+          Enum.each(1..20, fn i ->
+            DataDiode.S2.Decapsulator.process_packet(<<127, 0, 0, 1, 80, 0, 0, 0, 4, "data#{i}">>)
+          end)
         end)
       end)
-    end)
 
     # Simultaneously run cleaner
-    cleaner_task = Task.async(fn ->
-      Enum.each(1..10, fn _ ->
-        DataDiode.DiskCleaner.handle_info(:cleanup, %{})
-        Process.sleep(10)
+    cleaner_task =
+      Task.async(fn ->
+        Enum.each(1..10, fn _ ->
+          DataDiode.DiskCleaner.handle_info(:cleanup, %{})
+          Process.sleep(10)
+        end)
       end)
-    end)
 
     Enum.each(writers, &Task.await(&1, 5000))
     Task.await(cleaner_task)

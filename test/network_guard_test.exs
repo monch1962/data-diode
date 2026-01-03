@@ -85,7 +85,8 @@ defmodule DataDiode.NetworkGuardTest do
 
     test "calculates exponential backoff correctly" do
       # Test exponential backoff calculation
-      base_delay = 5000  # 5 seconds
+      # 5 seconds
+      base_delay = 5000
 
       # Calculate delays for first 6 attempts
       delays =
@@ -97,7 +98,7 @@ defmodule DataDiode.NetworkGuardTest do
       assert Enum.at(delays, 0) == 5000
       assert Enum.at(delays, 1) == 10000
       assert Enum.at(delays, 2) == 20000
-      assert Enum.at(delays, 5) == 160000
+      assert Enum.at(delays, 5) == 160_000
     end
   end
 
@@ -289,9 +290,12 @@ defmodule DataDiode.NetworkGuardTest do
       assert is_list(state.history)
 
       # History should have timestamps
-      if length(state.history) > 0 do
-        entry = hd(state.history)
-        assert Map.has_key?(entry, :timestamp)
+      case state.history do
+        [] ->
+          :ok
+
+        [entry | _] ->
+          assert Map.has_key?(entry, :timestamp)
       end
     end
   end

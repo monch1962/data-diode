@@ -5,8 +5,8 @@ defmodule DataDiode.S2.Listener do
   use GenServer
   require Logger
 
-  alias DataDiode.NetworkHelpers
   alias DataDiode.ConfigHelpers
+  alias DataDiode.NetworkHelpers
 
   @spec start_link(keyword()) :: :ignore | {:error, any()} | {:ok, pid()}
   def start_link(opts \\ []) do
@@ -17,7 +17,7 @@ defmodule DataDiode.S2.Listener do
   Resolves the UDP listen port for Service 2.
   """
   @spec resolve_listen_port() :: {:ok, non_neg_integer()} | {:error, {:invalid_port, any()}}
-  def resolve_listen_port() do
+  def resolve_listen_port do
     NetworkHelpers.validate_port(ConfigHelpers.s2_port())
   end
 
@@ -31,6 +31,7 @@ defmodule DataDiode.S2.Listener do
       {:error, {:invalid_port, port_str}} ->
         Logger.error("S2: Invalid value for LISTEN_PORT: \"#{port_str}\". Exiting.")
         {:stop, :invalid_port_value}
+
       {:error, reason} ->
         Logger.error("S2: Failed to open UDP socket: #{inspect(reason)}")
         {:stop, reason}
@@ -84,7 +85,7 @@ defmodule DataDiode.S2.Listener do
   @doc false
   # Helper to define UDP socket options
   @spec udp_options() :: [:gen_udp.option()]
-  def udp_options() do
+  def udp_options do
     NetworkHelpers.udp_listen_options(ConfigHelpers.s2_ip())
   end
 

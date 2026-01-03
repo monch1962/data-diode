@@ -16,24 +16,27 @@ defmodule DataDiode.NervesCompatibilityTest do
     for file <- files do
       content = File.read!(file)
       # Match strings starting with "/" that aren't in allowed paths
-      matches = Regex.scan(~r/"\/[a-zA-Z0-9_\-\/]+"/, content)
-      |> List.flatten()
-      |> Enum.reject(fn path ->
-        String.starts_with?(path, "\"/sys/") or
-        String.starts_with?(path, "\"/tmp/") or
-        String.starts_with?(path, "\"/proc/") or
-        String.starts_with?(path, "\"/dev/") or
-        String.starts_with?(path, "\"/var/") or
-        String.contains?(path, "#") # interpolation
-      end)
+      matches =
+        Regex.scan(~r/"\/[a-zA-Z0-9_\-\/]+"/, content)
+        |> List.flatten()
+        |> Enum.reject(fn path ->
+          # interpolation
+          String.starts_with?(path, "\"/sys/") or
+            String.starts_with?(path, "\"/tmp/") or
+            String.starts_with?(path, "\"/proc/") or
+            String.starts_with?(path, "\"/dev/") or
+            String.starts_with?(path, "\"/var/") or
+            String.contains?(path, "#")
+        end)
 
-      assert matches == [], "File #{file} contains potentially incompatible absolute paths: #{inspect(matches)}"
+      assert matches == [],
+             "File #{file} contains potentially incompatible absolute paths: #{inspect(matches)}"
     end
   end
 
   test "verify resource monitoring use standard BusyBox compatible commands" do
     # Nerves uses BusyBox. We need to ensure System.cmd calls are minimal or conditional.
-    
+
     # SystemMonitor uses `df -h`
     if Code.ensure_loaded?(DataDiode.SystemMonitor) do
       # This is more of a manual review check, but we can verify the module compiles and exists.
@@ -44,10 +47,10 @@ defmodule DataDiode.NervesCompatibilityTest do
   test "verify storage is redirected to /data for Nerves" do
     # On Nerves, we MUST write to /data.
     # We simulate this by checking if the app prefers DATA_DIR if set.
-    
+
     orig_dir = Application.get_env(:data_diode, :data_dir)
     Application.put_env(:data_diode, :data_dir, "/data/diode")
-    
+
     try do
       # Decapsulator uses data_dir() internally. We check that it's respected.
       # Since we can't easily call private data_dir, we verify it in DiskCleaner logs or via mocks if available.
@@ -62,9 +65,12 @@ defmodule DataDiode.NervesCompatibilityTest do
     # Nerves runs as root but with a very limited home dir. 
     # Check that we aren't using System.user_home() or similar.
     files = Path.wildcard("lib/**/*.ex")
+
     for file <- files do
       content = File.read!(file)
-      refute content =~ "System.user_home", "File #{file} uses System.user_home which is unreliable on Nerves."
+
+      refute content =~ "System.user_home",
+             "File #{file} uses System.user_home which is unreliable on Nerves."
     end
   end
 

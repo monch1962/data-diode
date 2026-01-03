@@ -7,7 +7,8 @@ config :data_diode,
 
 # OT Hardening: Logger configuration for Raspberry Pi (protects SD card)
 config :logger,
-  level: :info, # Avoid :debug in production to reduce I/O
+  # Avoid :debug in production to reduce I/O
+  level: :info,
   handle_otp_reports: true,
   handle_sasl_reports: true
 

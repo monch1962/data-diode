@@ -93,19 +93,23 @@ defmodule DataDiode.Application do
     ]
 
     # Add Health API only in production to avoid port conflicts during tests
-    children = if Mix.env() == :prod do
-      children ++ [{Plug.Cowboy, scheme: :http, plug: DataDiode.HealthAPI, options: [port: 4000]}]
-    else
-      children
-    end
+    children =
+      if Mix.env() == :prod do
+        children ++
+          [{Plug.Cowboy, scheme: :http, plug: DataDiode.HealthAPI, options: [port: 4000]}]
+      else
+        children
+      end
 
     # Define the supervision strategy: :one_for_one
     # Harsh environment: Increased restart tolerance
     opts = [
       strategy: :one_for_one,
       name: DataDiode.Supervisor,
-      max_restarts: 50,  # Increased from 20 for harsh environments
-      max_seconds: 10     # Extended window from 5 seconds
+      # Increased from 20 for harsh environments
+      max_restarts: 50,
+      # Extended window from 5 seconds
+      max_seconds: 10
     ]
 
     # Start the supervisor with the defined children
@@ -122,7 +126,8 @@ defmodule DataDiode.Application do
       path: Path.join(log_dir, "data_diode.log"),
       level: :info,
       rotate: :daily,
-      keep: 90  # Keep 90 days of logs for harsh environments
+      # Keep 90 days of logs for harsh environments
+      keep: 90
     ]
 
     Application.put_env(:logger, :backends, [:console, {LoggerFileBackend, :error_log}])

@@ -29,7 +29,7 @@ defmodule DataDiode.S1.TCPHandler do
   end
 
   @impl true
-  def handle_info(:activate, state = %{socket: socket}) do
+  def handle_info(:activate, %{socket: socket} = state) do
     # Resolve source info once
     {src_ip, src_port} =
       case :inet.peername(socket) do

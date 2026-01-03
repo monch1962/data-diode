@@ -16,7 +16,8 @@ defmodule DataDiode.ProtocolDefinitions do
   def matches?(
         :modbus,
         <<_trans_id::binary-2, 0x00, 0x00, _len::binary-2, _unit_id::binary-1, _rest::binary>>
-      ), do: true
+      ),
+      do: true
 
   def matches?(:modbus, _), do: false
 
@@ -28,7 +29,9 @@ defmodule DataDiode.ProtocolDefinitions do
   # MQTT
   # Fixed Header First Byte: Packet Type (4 bits) | Flags (4 bits)
   # CONNECT = 1 (0x10), PUBLISH = 3 (0x30), etc.
-  # We allow common ones or strict subset. Let's allow CONNECT(1), CONNACK(2), PUBLISH(3), PUBACK(4), PUBREC(5), PUBREL(6), PUBCOMP(7), SUBSCRIBE(8), SUBACK(9), UNSUBSCRIBE(10), UNSUBACK(11), PINGREQ(12), PINGRESP(13), DISCONNECT(14).
+  # Valid packet types: CONNECT(1), CONNACK(2), PUBLISH(3), PUBACK(4),
+  # PUBREC(5), PUBREL(6), PUBCOMP(7), SUBSCRIBE(8), SUBACK(9),
+  # UNSUBSCRIBE(10), UNSUBACK(11), PINGREQ(12), PINGRESP(13), DISCONNECT(14)
   # Basically, 0x1X - 0xEX.
   # Simplest: Any valid Control Packet.
   def matches?(:mqtt, <<packet_type::size(4), _flags::size(4), _rest::binary>>)

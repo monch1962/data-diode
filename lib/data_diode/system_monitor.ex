@@ -5,7 +5,8 @@ defmodule DataDiode.SystemMonitor do
   use GenServer
   require Logger
 
-  @interval_ms 60_000 # 60 seconds
+  # 60 seconds
+  @interval_ms 60_000
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
@@ -21,16 +22,11 @@ defmodule DataDiode.SystemMonitor do
   def handle_info(:pulse, state) do
     # Collect System Info
     stats = DataDiode.Metrics.get_stats()
-    
+
     # Emit JSON pulse via Logger
-    Logger.info("HEALTH_PULSE: #{inspect(%{
-      uptime_seconds: stats.uptime_seconds,
-      packets_forwarded: stats.packets_forwarded,
-      error_count: stats.error_count,
-      cpu_temp: get_cpu_temp(),
-      memory_usage_mb: get_memory_usage(),
-      disk_free_percent: get_disk_free("/")
-    })}")
+    Logger.info(
+      "HEALTH_PULSE: #{inspect(%{uptime_seconds: stats.uptime_seconds, packets_forwarded: stats.packets_forwarded, error_count: stats.error_count, cpu_temp: get_cpu_temp(), memory_usage_mb: get_memory_usage(), disk_free_percent: get_disk_free("/")})}"
+    )
 
     schedule_pulse()
     {:noreply, state}
@@ -52,14 +48,18 @@ defmodule DataDiode.SystemMonitor do
   """
   @spec get_cpu_temp() :: float() | binary()
   def get_cpu_temp do
-    path = Application.get_env(:data_diode, :thermal_path, "/sys/class/thermal/thermal_zone0/temp")
+    path =
+      Application.get_env(:data_diode, :thermal_path, "/sys/class/thermal/thermal_zone0/temp")
+
     case File.read(path) do
       {:ok, body} ->
         case Integer.parse(String.trim(body)) do
           {temp, _} -> temp / 1000.0
           :error -> "unknown"
         end
-      {:error, _} -> "unknown"
+
+      {:error, _} ->
+        "unknown"
     end
   end
 
@@ -68,7 +68,7 @@ defmodule DataDiode.SystemMonitor do
   """
   @spec get_memory_usage() :: float()
   def get_memory_usage do
-     :erlang.memory(:total) / 1024 / 1024
+    :erlang.memory(:total) / 1024 / 1024
   end
 
   @doc """
@@ -84,7 +84,9 @@ defmodule DataDiode.SystemMonitor do
         |> Enum.at(1)
         |> String.split()
         |> Enum.at(4)
-      _ -> "unknown"
+
+      _ ->
+        "unknown"
     end
   rescue
     # Only catch specific errors related to string/split operations

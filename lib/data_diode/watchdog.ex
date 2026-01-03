@@ -55,7 +55,9 @@ defmodule DataDiode.Watchdog do
     # In production OT, this usually writes to /dev/watchdog.
     # For this simulation, we touch a file to confirm the pulse.
     case File.write(path, "PULSE") do
-      :ok -> :ok
+      :ok ->
+        :ok
+
       {:error, reason} ->
         Logger.error("Watchdog: Failed to pulse #{path}: #{inspect(reason)}")
     end
@@ -68,21 +70,26 @@ defmodule DataDiode.Watchdog do
 
   defp thermal_safe? do
     temp = DataDiode.SystemMonitor.get_cpu_temp()
-    
+
     # If temp is "unknown", fail safe? Or assume safe?
     # In OT, we generally fail safe (stop pulse) if we can't read sensors.
     # But for now, let's treat "unknown" as safe to avoid accidental reboots on systems without sensors.
     case temp do
-      "unknown" -> true
-      t when is_number(t) -> 
+      "unknown" ->
+        true
+
+      t when is_number(t) ->
         max = Application.get_env(:data_diode, :watchdog_max_temp, @default_max_temp)
+
         if t > max do
           Logger.warning("Watchdog: Thermal Cutoff! Current: #{t}, Max: #{max}")
           false
         else
           true
         end
-      _ -> true
+
+      _ ->
+        true
     end
   end
 

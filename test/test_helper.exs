@@ -9,4 +9,3 @@ Mox.defmock(DataDiode.S1.EncapsulatorMock, for: DataDiode.S1.Encapsulator)
 # Load test support modules
 Code.require_file("test/support/missing_hardware.ex")
 Code.require_file("test/support/hardware_fixtures.ex")
-

@@ -24,7 +24,8 @@ defmodule DataDiode.S2.HeartbeatMonitorTest do
       assert is_map(state)
       assert Map.has_key?(state, :last_seen)
       assert is_integer(state.last_seen)
-      assert timeout == 360_000  # Default timeout is 6 minutes
+      # Default timeout is 6 minutes
+      assert timeout == 360_000
     end
   end
 
@@ -88,14 +89,16 @@ defmodule DataDiode.S2.HeartbeatMonitorTest do
       Application.delete_env(:data_diode, :heartbeat_timeout_ms)
 
       assert {:ok, _state, timeout} = HeartbeatMonitor.init(:ok)
-      assert timeout == 360_000  # 6 minutes
+      # 6 minutes
+      assert timeout == 360_000
     end
 
     test "uses custom timeout when configured" do
       Application.put_env(:data_diode, :heartbeat_timeout_ms, 180_000)
 
       assert {:ok, _state, timeout} = HeartbeatMonitor.init(:ok)
-      assert timeout == 180_000  # 3 minutes
+      # 3 minutes
+      assert timeout == 180_000
 
       Application.delete_env(:data_diode, :heartbeat_timeout_ms)
     end
