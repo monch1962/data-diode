@@ -256,8 +256,21 @@ defmodule DataDiode.HealthAPI do
     mtimes =
       Enum.map(dat_files, fn file ->
         case File.stat(file) do
-          {:ok, stat} -> stat.mtime
-          _ -> DateTime.from_unix!(0)
+          {:ok, stat} ->
+            # Convert mtime to DateTime if it's not already
+            case stat.mtime do
+              %DateTime{} = dt -> dt
+              {{_y, _m, _d}, {_h, _min, _s}} = erl_time ->
+                # Convert Erlang-style tuple to DateTime
+                erl_time
+                |> NaiveDateTime.from_erl!()
+                |> DateTime.from_naive!("Etc/UTC")
+              _ ->
+                DateTime.from_unix!(0)
+            end
+
+          _ ->
+            DateTime.from_unix!(0)
         end
       end)
 
@@ -275,6 +288,7 @@ defmodule DataDiode.HealthAPI do
       {DataDiode.S2.Listener, "S2.Listener"},
       {DataDiode.S1.Encapsulator, "S1.Encapsulator"},
       {DataDiode.S2.Decapsulator, "S2.Decapsulator"},
+      {DataDiode.Metrics, "Metrics"},
       {DataDiode.Watchdog, "Watchdog"},
       {DataDiode.SystemMonitor, "SystemMonitor"},
       {DataDiode.DiskCleaner, "DiskCleaner"},
@@ -359,12 +373,14 @@ defmodule DataDiode.HealthAPI do
 
   defp critical_storage?(storage) do
     storage.disk_usage != %{} and
-      String.to_integer(storage.disk_usage.use_percent || "0") >= 95
+      not Map.has_key?(storage.disk_usage, :error) and
+      String.to_integer(storage.disk_usage[:use_percent] || storage.disk_usage["use_percent"] || "0") >= 95
   end
 
   defp warning_storage?(storage) do
     storage.disk_usage != %{} and
-      String.to_integer(storage.disk_usage.use_percent || "0") >= 90
+      not Map.has_key?(storage.disk_usage, :error) and
+      String.to_integer(storage.disk_usage[:use_percent] || storage.disk_usage["use_percent"] || "0") >= 90
   end
 
   defp all_processes_alive?(processes) do
@@ -405,11 +421,17 @@ defmodule DataDiode.HealthAPI do
 
   defp get_cpu_usage do
     # Parse from /proc/stat or use top
-    case System.cmd("sh", ["-c", "top -bn1 | grep 'Cpu(s)' | awk '{print $2}'"]) do
-      {output, 0} ->
-        String.trim(output)
+    try do
+      case System.cmd("sh", ["-c", "top -bn1 | grep 'Cpu(s)' | awk '{print $2}'"]) do
+        {output, 0} ->
+          String.trim(output)
 
+        _ ->
+          "unknown"
+      end
+    rescue
       _ ->
+        # Command not available on this platform (e.g., macOS)
         "unknown"
     end
   end
@@ -433,9 +455,14 @@ defmodule DataDiode.HealthAPI do
     token = get_req_header(conn, "x-auth-token")
     expected_token = Application.get_env(:data_diode, :health_api_auth_token)
 
-    case token do
-      [^expected_token] -> true
-      _ -> false
+    # If no token is configured, allow all requests
+    if expected_token == nil do
+      true
+    else
+      case token do
+        [^expected_token] -> true
+        _ -> false
+      end
     end
   end
 

@@ -138,6 +138,10 @@ defmodule DataDiode.OTHardeningTest do
   test "S1.Encapsulator respects protocol allow-list" do
     name = :protocol_test
     Application.put_env(:data_diode, :protocol_allow_list, [:modbus])
+
+    # Reset RateLimiter state for this IP to avoid test pollution
+    DataDiode.RateLimiter.reset_ip("1.1.1.1")
+
     {:ok, pid} = DataDiode.S1.Encapsulator.start_link(name: name)
 
     # The state should show token consumption only for allowed packets if we weren't just dropping both

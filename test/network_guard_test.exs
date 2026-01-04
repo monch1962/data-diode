@@ -17,15 +17,19 @@ defmodule DataDiode.NetworkGuardTest do
     end
 
     test "checks network interfaces" do
-      # This test may fail on systems without 'ip' command or network interfaces
-      # The function should either return a list or crash with :enoent
-      try do
-        interfaces = DataDiode.NetworkGuard.check_network_interfaces()
-        assert is_list(interfaces)
-      rescue
-        # It's OK if the function crashes when 'ip' command doesn't exist
-        _error in ErlangError -> :ok
-      end
+      # This test handles systems with and without 'ip' command
+      interfaces = DataDiode.NetworkGuard.check_network_interfaces()
+
+      # Should return a map with s1, s2, and timestamp
+      assert is_map(interfaces)
+      assert Map.has_key?(interfaces, :s1) or Map.has_key?(interfaces, "s1")
+      assert Map.has_key?(interfaces, :s2) or Map.has_key?(interfaces, "s2")
+      assert Map.has_key?(interfaces, :timestamp) or Map.has_key?(interfaces, "timestamp")
+
+      # On systems with 'ip' command, interfaces should have :up field
+      # On systems without, they should have :error field
+      s1 = Map.get(interfaces, :s1) || Map.get(interfaces, "s1")
+      assert Map.has_key?(s1, :up) or Map.has_key?(s1, "up") or Map.has_key?(s1, :error) or Map.has_key?(s1, "error")
     end
   end
 
@@ -108,14 +112,14 @@ defmodule DataDiode.NetworkGuardTest do
     end
 
     test "handles missing interfaces gracefully" do
-      # Should not crash even if interfaces don't exist
-      try do
-        interfaces = DataDiode.NetworkGuard.check_network_interfaces()
-        assert is_list(interfaces)
-      rescue
-        # It's OK if the function crashes when 'ip' command doesn't exist
-        _error in ErlangError -> :ok
-      end
+      # Should not crash even if interfaces don't exist or 'ip' command is unavailable
+      interfaces = DataDiode.NetworkGuard.check_network_interfaces()
+
+      # Should return a map even when interfaces don't exist or command fails
+      assert is_map(interfaces)
+      assert Map.has_key?(interfaces, :s1) or Map.has_key?(interfaces, "s1")
+      assert Map.has_key?(interfaces, :s2) or Map.has_key?(interfaces, "s2")
+      assert Map.has_key?(interfaces, :timestamp) or Map.has_key?(interfaces, "timestamp")
     end
 
     test "logs network events" do

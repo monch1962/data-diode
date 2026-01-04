@@ -112,23 +112,33 @@ defmodule DataDiode.NetworkGuard do
 
   defp check_interface(interface) do
     # Use 'ip' command to check if interface is up
-    case System.cmd("ip", ["link", "show", interface]) do
-      {output, 0} ->
-        up = String.contains?(output, "UP")
-        lower_up = String.contains?(output, "LOWER_UP")
-        carrier = String.contains?(output, "state UP")
+    try do
+      case System.cmd("ip", ["link", "show", interface]) do
+        {output, 0} ->
+          up = String.contains?(output, "UP")
+          lower_up = String.contains?(output, "LOWER_UP")
+          carrier = String.contains?(output, "state UP")
 
-        # Interface is truly up when all conditions are met
-        %{up: up and lower_up and carrier, interface: interface}
+          # Interface is truly up when all conditions are met
+          %{up: up and lower_up and carrier, interface: interface}
 
-      {output, _exit_code} ->
-        # Interface doesn't exist or command failed
+        {output, _exit_code} ->
+          # Interface doesn't exist or command failed
+          Logger.warning(
+            "NetworkGuard: Cannot check interface #{interface}: #{String.trim(output)}"
+          )
+
+          %{up: false, interface: interface}
+      end
+    rescue
+      e ->
+        # Command doesn't exist on this platform (e.g., macOS)
         Logger.warning(
-          "NetworkGuard: Cannot check interface #{interface}: #{String.trim(output)}"
+          "NetworkGuard: 'ip' command not available on this platform: #{Exception.message(e)}"
         )
 
-        %{up: false, interface: interface}
-    end
+        %{up: false, interface: interface, error: "command_not_found"}
+      end
   end
 
   # History and flapping detection
@@ -257,21 +267,28 @@ defmodule DataDiode.NetworkGuard do
     if Application.get_env(:data_diode, :auto_recovery_enabled, true) do
       Logger.info("NetworkGuard: Attempting to recover interface #{interface}")
 
-      # Bring interface down
-      System.cmd("ip", ["link", "set", interface, "down"])
+      try do
+        # Bring interface down
+        System.cmd("ip", ["link", "set", interface, "down"], stderr_to_stdout: true)
 
-      # Wait 2 seconds
-      Process.sleep(2000)
+        # Wait 2 seconds
+        Process.sleep(2000)
 
-      # Bring interface back up
-      case System.cmd("ip", ["link", "set", interface, "up"]) do
-        {_, 0} ->
-          Logger.info("NetworkGuard: Interface #{interface} reset successfully")
-          flush_arp_cache()
+        # Bring interface back up
+        case System.cmd("ip", ["link", "set", interface, "up"], stderr_to_stdout: true) do
+          {_, 0} ->
+            Logger.info("NetworkGuard: Interface #{interface} reset successfully")
+            flush_arp_cache()
 
-        {output, exit_code} ->
+          {output, exit_code} ->
+            Logger.error(
+              "NetworkGuard: Failed to reset interface #{interface}: #{String.trim(output)} (exit #{exit_code})"
+            )
+        end
+      rescue
+        e ->
           Logger.error(
-            "NetworkGuard: Failed to reset interface #{interface}: #{String.trim(output)} (exit #{exit_code})"
+            "NetworkGuard: Recovery command not available on this platform: #{Exception.message(e)}"
           )
       end
     else
@@ -281,7 +298,15 @@ defmodule DataDiode.NetworkGuard do
 
   defp flush_arp_cache do
     Logger.debug("NetworkGuard: Flushing ARP cache")
-    System.cmd("ip", ["neigh", "flush", "all"])
+
+    try do
+      System.cmd("ip", ["neigh", "flush", "all"], stderr_to_stdout: true)
+    rescue
+      e ->
+        Logger.warning(
+          "NetworkGuard: ARP flush command not available on this platform: #{Exception.message(e)}"
+        )
+    end
   end
 
   # Scheduling
