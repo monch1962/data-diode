@@ -137,14 +137,18 @@ defmodule DataDiode.OTHardeningTest do
 
   test "S1.Encapsulator respects protocol allow-list" do
     name = :protocol_test
-    Application.put_env(:data_diode, :protocol_allow_list, ["ALLOW_"])
+    Application.put_env(:data_diode, :protocol_allow_list, [:modbus])
     {:ok, pid} = DataDiode.S1.Encapsulator.start_link(name: name)
 
     # The state should show token consumption only for allowed packets if we weren't just dropping both
     # Actually, both consume tokens in my implementation (to punish bad actors/noise).
 
-    GenServer.cast(name, {:send, "1.1.1.1", 80, "ALLOW_DATA"})
-    GenServer.cast(name, {:send, "1.1.1.1", 80, "BLOCKED_DATA"})
+    # Modbus TCP packet: TransactionID(2), ProtocolID=0x0000, Length(2), UnitID(1), Function(1)
+    modbus_packet = <<0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x01, 0x03, 0x00, 0x00, 0x00, 0x01>>
+    non_modbus_packet = "NOT_MODBUS_DATA"
+
+    GenServer.cast(name, {:send, "1.1.1.1", 80, modbus_packet})
+    GenServer.cast(name, {:send, "1.1.1.1", 80, non_modbus_packet})
 
     # Small sleep to ensure casts are processed
     Process.sleep(10)

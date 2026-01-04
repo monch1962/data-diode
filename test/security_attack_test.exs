@@ -11,6 +11,10 @@ defmodule DataDiode.SecurityAttackTest do
     Application.ensure_all_started(:data_diode)
     DataDiode.S1.Encapsulator.set_rate_limit(1000)
 
+    # Reset RateLimiter state for common test IPs to avoid test pollution
+    ["1.2.3.4", "10.0.0.1", "1.1.1.1"]
+    |> Enum.each(fn ip -> DataDiode.RateLimiter.reset_ip(ip) end)
+
     on_exit(fn ->
       # Clean up environment to avoid polluting other tests
       Application.delete_env(:data_diode, :protocol_allow_list)
