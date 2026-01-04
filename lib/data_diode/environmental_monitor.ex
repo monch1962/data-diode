@@ -16,6 +16,35 @@ defmodule DataDiode.EnvironmentalMonitor do
   use GenServer
   require Logger
 
+  @type temp_reading :: float() | :unknown
+  @type humidity_reading :: float() | :unknown
+
+  @type status ::
+          :normal
+          | :warning_hot
+          | :critical_hot
+          | :warning_cold
+          | :critical_cold
+          | :warning_humidity
+          | :critical_humidity
+
+  @type thermal_state :: :cooling | :heating | :normal
+
+  @type environmental_readings :: %{
+          cpu: temp_reading(),
+          storage: temp_reading(),
+          ambient: temp_reading(),
+          humidity: humidity_reading(),
+          timestamp: integer(),
+          status: status()
+        }
+
+  @type state :: %{
+          thermal_state: thermal_state(),
+          history: [environmental_readings()],
+          last_action: term()
+        }
+
   # Critical thresholds (Celsius)
   @cpu_temp_critical 85
   @cpu_temp_warning 75
@@ -39,11 +68,13 @@ defmodule DataDiode.EnvironmentalMonitor do
   @heating_state :heating
   @normal_state :normal
 
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
   end
 
   @impl true
+  @spec init(:ok) :: {:ok, state()}
   def init(:ok) do
     Logger.info("EnvironmentalMonitor: Starting multi-zone monitoring")
 
@@ -60,6 +91,7 @@ defmodule DataDiode.EnvironmentalMonitor do
   Reads all environmental sensors and evaluates conditions.
   Returns a map with current readings and status.
   """
+  @spec monitor_all_zones() :: environmental_readings()
   def monitor_all_zones do
     %{
       cpu: read_cpu_temp(),
@@ -74,11 +106,14 @@ defmodule DataDiode.EnvironmentalMonitor do
   @doc """
   Gets the current environmental state.
   """
+  @spec get_current_state() :: environmental_readings()
   def get_current_state do
     GenServer.call(__MODULE__, :get_state)
   end
 
   @impl true
+  @spec handle_call(:get_state, GenServer.from(), state()) ::
+          {:reply, environmental_readings(), state()}
   def handle_call(:get_state, _from, state) do
     current = monitor_all_zones()
     {:reply, current, state}

@@ -14,7 +14,6 @@ defmodule DataDiode.MixProject do
         plt_add_apps: [:mix, :ex_unit],
         flags: [
           :error_handling,
-          :race_conditions,
           :unmatched_returns,
           :underspecs
         ]

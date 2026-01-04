@@ -13,6 +13,7 @@ defmodule DataDiode.Application do
   use Application
 
   @impl true
+  @spec start(Application.start_type(), [term()]) :: {:ok, pid()}
   def start(_type, _args) do
     # Setup log rotation before starting logger
     setup_log_rotation()
@@ -28,6 +29,9 @@ defmodule DataDiode.Application do
         start: {DataDiode.Metrics, :start_link, [[]]},
         type: :worker
       },
+
+      # 1.5. Per-IP Rate Limiter (Security hardening)
+      {DataDiode.RateLimiter, []},
 
       # 2. Environmental Monitoring (NEW for harsh environments)
       {DataDiode.EnvironmentalMonitor, []},
@@ -117,6 +121,7 @@ defmodule DataDiode.Application do
   end
 
   # Setup log rotation for harsh environments
+  @spec setup_log_rotation() :: :ok
   defp setup_log_rotation do
     log_dir = Path.join([Application.app_dir(:data_diode), "log"])
     File.mkdir_p!(log_dir)

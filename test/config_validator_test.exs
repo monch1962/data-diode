@@ -5,7 +5,7 @@ defmodule DataDiode.ConfigValidatorTest do
   describe "validate!/0" do
     test "validates successfully with valid configuration" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
 
@@ -14,7 +14,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "raises error with invalid s1_port" do
       Application.put_env(:data_diode, :s1_port, -1)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
 
@@ -24,8 +24,8 @@ defmodule DataDiode.ConfigValidatorTest do
     end
 
     test "raises error with port too large" do
-      Application.put_env(:data_diode, :s1_port, 99999)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s1_port, 99_999)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
 
@@ -36,7 +36,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "raises error with invalid port type" do
       Application.put_env(:data_diode, :s1_port, "not_a_number")
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
 
@@ -47,7 +47,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "raises error with invalid s2_port" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 70000)
+      Application.put_env(:data_diode, :s2_port, 70_000)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
 
@@ -58,7 +58,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "validates successfully with nil s1_udp_port" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :s1_udp_port, nil)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
@@ -68,7 +68,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "validates successfully with valid s1_udp_port" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :s1_udp_port, 161)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
@@ -78,7 +78,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "raises error with invalid s1_ip" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :s1_ip, "999.999.999.999")
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
@@ -92,7 +92,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "raises error with invalid s2_ip" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :s2_ip, "not_an_ip")
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
@@ -108,7 +108,7 @@ defmodule DataDiode.ConfigValidatorTest do
       test_dir = System.tmp_dir!() <> "/data_diode_test_#{System.unique_integer()}"
 
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, test_dir)
       Application.put_env(:data_diode, :allowed_protocols, [:any])
 
@@ -126,7 +126,7 @@ defmodule DataDiode.ConfigValidatorTest do
       invalid_dir = "/root/no_permission_#{System.unique_integer()}"
 
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, invalid_dir)
       Application.put_env(:data_diode, :allowed_protocols, [:any])
 
@@ -142,7 +142,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "raises error with invalid allowed_protocols type" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, "not_a_list")
 
@@ -155,7 +155,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "raises error with invalid protocol values" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:modbus, "not_an_atom"])
 
@@ -168,7 +168,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "raises error with invalid rate_limit" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
       Application.put_env(:data_diode, :max_packets_per_sec, -1)
@@ -182,7 +182,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "raises error with invalid disk_cleaner_interval" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
       Application.put_env(:data_diode, :disk_cleaner_interval, 0)
@@ -196,7 +196,7 @@ defmodule DataDiode.ConfigValidatorTest do
 
     test "raises error with invalid disk_cleanup_batch_size" do
       Application.put_env(:data_diode, :s1_port, 8080)
-      Application.put_env(:data_diode, :s2_port, 42001)
+      Application.put_env(:data_diode, :s2_port, 42_001)
       Application.put_env(:data_diode, :data_dir, ".")
       Application.put_env(:data_diode, :allowed_protocols, [:any])
       Application.put_env(:data_diode, :disk_cleanup_batch_size, -10)

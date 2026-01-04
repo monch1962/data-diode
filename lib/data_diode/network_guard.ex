@@ -14,6 +14,31 @@ defmodule DataDiode.NetworkGuard do
   use GenServer
   require Logger
 
+  @type interface_status :: %{
+          up: boolean(),
+          interface: String.t()
+        }
+
+  @type interface_state :: :up | :down | :unknown
+
+  @type network_status :: %{
+          s1: interface_status(),
+          s2: interface_status(),
+          timestamp: integer()
+        }
+
+  @type history_entry :: %{
+          s1_up: boolean(),
+          s2_up: boolean(),
+          timestamp: integer()
+        }
+
+  @type state :: %{
+          history: [history_entry()],
+          interface_state: %{s1: interface_state(), s2: interface_state()},
+          flapping: boolean()
+        }
+
   # 30 seconds
   @interface_check_interval 30_000
   # 5 state changes
@@ -23,11 +48,13 @@ defmodule DataDiode.NetworkGuard do
   # 1 minute penalty when flapping detected
   @flapping_penalty_delay 60_000
 
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
   end
 
   @impl true
+  @spec init(:ok) :: {:ok, state()}
   def init(:ok) do
     Logger.info("NetworkGuard: Starting network interface monitoring")
     schedule_check()
@@ -35,6 +62,7 @@ defmodule DataDiode.NetworkGuard do
   end
 
   @impl true
+  @spec handle_info(:check_interfaces, state()) :: {:noreply, state()}
   def handle_info(:check_interfaces, state) do
     current_state = check_network_interfaces()
 
@@ -49,6 +77,7 @@ defmodule DataDiode.NetworkGuard do
   end
 
   @impl true
+  @spec handle_info(:recovery_ready, state()) :: {:noreply, state()}
   def handle_info(:recovery_ready, state) do
     Logger.info("NetworkGuard: Flapping penalty period over, attempting recovery")
     {:noreply, %{state | flapping: false}}
@@ -57,6 +86,7 @@ defmodule DataDiode.NetworkGuard do
   @doc """
   Manually check network interface status.
   """
+  @spec check_network_interfaces() :: network_status()
   def check_network_interfaces do
     s1_interface = get_interface_status(:s1)
     s2_interface = get_interface_status(:s2)

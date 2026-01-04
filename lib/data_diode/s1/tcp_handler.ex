@@ -6,6 +6,12 @@ defmodule DataDiode.S1.TCPHandler do
   use GenServer, restart: :temporary
   require Logger
 
+  @type state :: %{
+          socket: :gen_tcp.socket(),
+          src_ip: String.t(),
+          src_port: non_neg_integer()
+        }
+
   # 1MB
   @max_packet_size 1_000_000
 
@@ -13,6 +19,7 @@ defmodule DataDiode.S1.TCPHandler do
   # API
   # --------------------------------------------------------------------------
 
+  @spec start_link(:gen_tcp.socket()) :: GenServer.on_start()
   def start_link(args) do
     GenServer.start_link(__MODULE__, args)
   end
@@ -22,6 +29,7 @@ defmodule DataDiode.S1.TCPHandler do
   # --------------------------------------------------------------------------
 
   @impl true
+  @spec init(:gen_tcp.socket()) :: {:ok, state()}
   def init(socket) do
     # Start in passive mode, then activate.
     send(self(), :activate)
@@ -29,6 +37,7 @@ defmodule DataDiode.S1.TCPHandler do
   end
 
   @impl true
+  @spec handle_info(:activate, state()) :: {:noreply, state()} | {:stop, :normal, state()}
   def handle_info(:activate, %{socket: socket} = state) do
     # Resolve source info once
     {src_ip, src_port} =
@@ -49,6 +58,7 @@ defmodule DataDiode.S1.TCPHandler do
   end
 
   @impl true
+  @spec handle_info({:tcp, :gen_tcp.socket(), binary()}, state()) :: {:noreply, state()}
   def handle_info({:tcp, socket, data}, state) do
     if byte_size(data) > @max_packet_size do
       Logger.warning(
@@ -71,18 +81,22 @@ defmodule DataDiode.S1.TCPHandler do
   end
 
   @impl true
+  @spec handle_info({:tcp_closed, :gen_tcp.socket()}, state()) :: {:stop, :normal, state()}
   def handle_info({:tcp_closed, _socket}, state) do
     Logger.info("S1: Connection closed by #{state.src_ip}:#{state.src_port}")
     {:stop, :normal, state}
   end
 
   @impl true
+  @spec handle_info({:tcp_error, :gen_tcp.socket(), term()}, state()) ::
+          {:stop, :shutdown, state()}
   def handle_info({:tcp_error, _socket, reason}, state) do
     Logger.error("S1: TCP error for #{state.src_ip}: #{inspect(reason)}")
     {:stop, :shutdown, state}
   end
 
   @impl true
+  @spec handle_info(term(), state()) :: {:noreply, state()}
   def handle_info(msg, state) do
     Logger.debug("S1: TCPHandler received unexpected message: #{inspect(msg)}")
     {:noreply, state}

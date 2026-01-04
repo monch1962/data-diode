@@ -96,8 +96,8 @@ defmodule DataDiode.NetworkGuardTest do
 
       # Expected: [5000, 10000, 20000, 40000, 80000, 160000]
       assert Enum.at(delays, 0) == 5000
-      assert Enum.at(delays, 1) == 10000
-      assert Enum.at(delays, 2) == 20000
+      assert Enum.at(delays, 1) == 10_000
+      assert Enum.at(delays, 2) == 20_000
       assert Enum.at(delays, 5) == 160_000
     end
   end

@@ -3,8 +3,8 @@ defmodule DataDiode.LongTermRobustnessTest do
   import ExUnit.CaptureLog
   require Logger
 
-  alias DataDiode.S1.TCPHandler
   alias DataDiode.S1.Listener, as: S1Listener
+  alias DataDiode.S1.TCPHandler
   alias DataDiode.S2.Listener, as: S2Listener
 
   defp wait_for_death(pid, count \\ 20)

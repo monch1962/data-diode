@@ -16,8 +16,35 @@ defmodule DataDiode.HealthAPI do
   """
 
   use Plug.Router
+  require Logger
 
   import DataDiode.ConfigHelpers
+
+  @type health_status :: %{
+          timestamp: String.t(),
+          uptime_seconds: non_neg_integer(),
+          system: map(),
+          environmental: map(),
+          network: map(),
+          storage: map(),
+          processes: [map()],
+          overall_status: atom()
+        }
+
+  @type storage_status :: %{
+          data_directory: String.t(),
+          disk_usage: map(),
+          file_count: non_neg_integer(),
+          oldest_file_age: integer() | nil,
+          newest_file_age: integer() | nil
+        }
+
+  @type process_status :: %{
+          name: String.t(),
+          alive: boolean(),
+          pid: String.t() | nil,
+          message_queue_len: non_neg_integer() | nil
+        }
 
   plug(Plug.Logger)
   plug(:match)
@@ -96,6 +123,7 @@ defmodule DataDiode.HealthAPI do
 
   # Health aggregation
 
+  @spec get_comprehensive_health() :: health_status()
   defp get_comprehensive_health do
     %{
       timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
@@ -166,6 +194,7 @@ defmodule DataDiode.HealthAPI do
     }
   end
 
+  @spec get_storage_status() :: storage_status()
   defp get_storage_status do
     data_dir = data_dir()
     df_info = get_disk_info(data_dir)
@@ -256,6 +285,7 @@ defmodule DataDiode.HealthAPI do
     ]
   end
 
+  @spec get_process_status({atom(), String.t()}) :: process_status()
   defp get_process_status({module, name}) do
     pid = Process.whereis(module)
     alive = pid != nil and Process.alive?(pid)
@@ -277,7 +307,7 @@ defmodule DataDiode.HealthAPI do
   defp collect_process_info(_pid, _alive), do: %{}
 
   defp get_operational_metrics do
-    DataDiode.Metrics.get_all()
+    DataDiode.Metrics.get_stats()
   end
 
   defp get_uptime_info do
@@ -398,6 +428,7 @@ defmodule DataDiode.HealthAPI do
 
   # Authentication
 
+  @spec authenticate_request(Plug.Conn.t()) :: boolean()
   defp authenticate_request(conn) do
     token = get_req_header(conn, "x-auth-token")
     expected_token = Application.get_env(:data_diode, :health_api_auth_token)
@@ -430,6 +461,7 @@ defmodule DataDiode.HealthAPI do
 
   # Response helpers
 
+  @spec send_json(Plug.Conn.t(), non_neg_integer(), map()) :: Plug.Conn.t()
   defp send_json(conn, status, data) do
     conn
     |> put_resp_content_type("application/json")

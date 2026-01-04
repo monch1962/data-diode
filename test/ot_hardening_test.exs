@@ -172,7 +172,7 @@ defmodule DataDiode.OTHardeningTest do
     Process.sleep(150)
 
     # It should have withheld pulse if main services aren't running in this test context
-    # unless we are running the whole app. 
+    # unless we are running the whole app.
     # Let's ensure it handles the unhealthy state
     capture_log(fn ->
       send(pid, :pulse)

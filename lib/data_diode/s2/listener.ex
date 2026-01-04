@@ -53,7 +53,7 @@ defmodule DataDiode.S2.Listener do
     end
 
     # Re-arm socket for next packet
-    :inet.setopts(socket, active: :once)
+    :ok = :inet.setopts(socket, active: :once)
     {:noreply, socket}
   end
 
@@ -66,7 +66,7 @@ defmodule DataDiode.S2.Listener do
   @impl true
   def handle_info({:udp_passive, socket}, socket) do
     # Explicitly re-arm if we hit passive limit
-    :inet.setopts(socket, active: :once)
+    :ok = :inet.setopts(socket, active: :once)
     {:noreply, socket}
   end
 

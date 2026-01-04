@@ -62,7 +62,7 @@ defmodule DataDiode.NervesCompatibilityTest do
   end
 
   test "verify no reliance on standard Linux user dirs" do
-    # Nerves runs as root but with a very limited home dir. 
+    # Nerves runs as root but with a very limited home dir.
     # Check that we aren't using System.user_home() or similar.
     files = Path.wildcard("lib/**/*.ex")
 

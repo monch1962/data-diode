@@ -120,8 +120,8 @@ defmodule DataDiode.S1.ListenerTest do
   end
 
   test "resolves to specified port from Application config" do
-    Application.put_env(:data_diode, :s1_port, 42000)
-    assert {:ok, 42000} = Listener.resolve_listen_port()
+    Application.put_env(:data_diode, :s1_port, 42_000)
+    assert {:ok, 42_000} = Listener.resolve_listen_port()
   end
 
   test "returns error for invalid port configuration" do
@@ -130,8 +130,8 @@ defmodule DataDiode.S1.ListenerTest do
   end
 
   test "returns error for port too large" do
-    Application.put_env(:data_diode, :s1_port, 70000)
-    assert {:error, {:invalid_port, 70000}} = Listener.resolve_listen_port()
+    Application.put_env(:data_diode, :s1_port, 70_000)
+    assert {:error, {:invalid_port, 70_000}} = Listener.resolve_listen_port()
   end
 
   test "returns error for non-integer port" do

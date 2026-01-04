@@ -10,11 +10,15 @@ defmodule DataDiode.Watchdog do
   @default_interval 10_000
   @default_max_temp 80.0
 
+  @type state :: %{path: String.t()}
+
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
   end
 
   @impl true
+  @spec init(:ok) :: {:ok, state()}
   def init(:ok) do
     Logger.info("Watchdog: Initialized monitoring (Target: #{resolve_path()}).")
     schedule_pulse()
@@ -22,6 +26,7 @@ defmodule DataDiode.Watchdog do
   end
 
   @impl true
+  @spec handle_info(:pulse, state()) :: {:noreply, state()}
   def handle_info(:pulse, state) do
     if healthy?() and thermal_safe?() do
       pulse(state.path)
@@ -33,6 +38,7 @@ defmodule DataDiode.Watchdog do
     {:noreply, state}
   end
 
+  @spec healthy?() :: boolean()
   defp healthy? do
     # Check critical processes are registered and alive
     processes = [
@@ -51,6 +57,7 @@ defmodule DataDiode.Watchdog do
   end
 
   @doc false
+  @spec pulse(String.t()) :: :ok
   def pulse(path) do
     # In production OT, this usually writes to /dev/watchdog.
     # For this simulation, we touch a file to confirm the pulse.
@@ -63,11 +70,13 @@ defmodule DataDiode.Watchdog do
     end
   end
 
+  @spec schedule_pulse() :: reference()
   defp schedule_pulse do
     interval = Application.get_env(:data_diode, :watchdog_interval, @default_interval)
     Process.send_after(self(), :pulse, interval)
   end
 
+  @spec thermal_safe?() :: boolean()
   defp thermal_safe? do
     temp = DataDiode.SystemMonitor.get_cpu_temp()
 
@@ -93,6 +102,7 @@ defmodule DataDiode.Watchdog do
     end
   end
 
+  @spec resolve_path() :: String.t()
   defp resolve_path do
     Application.get_env(:data_diode, :watchdog_path, @default_path)
   end

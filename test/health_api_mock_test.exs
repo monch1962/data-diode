@@ -14,15 +14,15 @@ defmodule DataDiode.HealthAPIMockTest do
       parts = String.split(uptime_line, " ", trim: true)
       {uptime_s, _rest} = Float.parse(hd(parts))
 
-      assert uptime_s == 12345.67
+      assert uptime_s == 12_345.67
     end
 
     test "formats uptime into human readable string" do
       # 1 day, 1 hour, 1 minute
-      uptime_seconds = 90061
+      uptime_seconds = 90_061
 
-      days = div(uptime_seconds, 86400)
-      hours = div(rem(uptime_seconds, 86400), 3600)
+      days = div(uptime_seconds, 86_400)
+      hours = div(rem(uptime_seconds, 86_400), 3600)
       minutes = div(rem(uptime_seconds, 3600), 60)
 
       uptime_string = "#{days}d #{hours}h #{minutes}m"
@@ -31,7 +31,7 @@ defmodule DataDiode.HealthAPIMockTest do
     end
 
     test "calculates uptime from start time" do
-      uptime_s = 90061
+      uptime_s = 90_061
       now = DateTime.utc_now()
       start_time = DateTime.add(now, -uptime_s)
 
@@ -241,14 +241,14 @@ defmodule DataDiode.HealthAPIMockTest do
       delay_seconds = 10
       delay_ms = delay_seconds * 1000
 
-      assert delay_ms == 10000
+      assert delay_ms == 10_000
     end
 
     test "shutdown has delay before execution" do
       delay_seconds = 10
       delay_ms = delay_seconds * 1000
 
-      assert delay_ms == 10000
+      assert delay_ms == 10_000
     end
   end
 
@@ -284,7 +284,7 @@ defmodule DataDiode.HealthAPIMockTest do
       lines = String.split(df_output, "\n", trim: true)
 
       # Should have header and data
-      assert length(lines) >= 1
+      assert [_ | _] = lines
     end
 
     test "handles malformed df output" do
@@ -301,7 +301,7 @@ defmodule DataDiode.HealthAPIMockTest do
     test "encodes health status to JSON" do
       health = %{
         timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
-        uptime_seconds: 12345,
+        uptime_seconds: 12_345,
         status: :healthy
       }
 

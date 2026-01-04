@@ -76,7 +76,7 @@ defmodule DataDiode.NetworkHelpersTest do
       assert {:ok, 1} = NetworkHelpers.validate_port(1)
       assert {:ok, 80} = NetworkHelpers.validate_port(80)
       assert {:ok, 8080} = NetworkHelpers.validate_port(8080)
-      assert {:ok, 65535} = NetworkHelpers.validate_port(65535)
+      assert {:ok, 65_535} = NetworkHelpers.validate_port(65_535)
     end
 
     test "rejects negative port numbers" do
@@ -85,8 +85,8 @@ defmodule DataDiode.NetworkHelpersTest do
     end
 
     test "rejects port numbers too large" do
-      assert {:error, {:invalid_port, 65536}} = NetworkHelpers.validate_port(65536)
-      assert {:error, {:invalid_port, 99999}} = NetworkHelpers.validate_port(99999)
+      assert {:error, {:invalid_port, 65_536}} = NetworkHelpers.validate_port(65_536)
+      assert {:error, {:invalid_port, 99_999}} = NetworkHelpers.validate_port(99_999)
     end
 
     test "rejects non-integer port numbers" do
@@ -97,7 +97,7 @@ defmodule DataDiode.NetworkHelpersTest do
     end
 
     test "rejects boundary port number 65536" do
-      assert {:error, {:invalid_port, 65536}} = NetworkHelpers.validate_port(65536)
+      assert {:error, {:invalid_port, 65_536}} = NetworkHelpers.validate_port(65_536)
     end
   end
 

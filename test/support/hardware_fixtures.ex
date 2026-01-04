@@ -104,4 +104,18 @@ defmodule DataDiode.HardwareFixtures do
   def cleanup(%{temp_dir: temp_dir}) do
     File.rm_rf!(temp_dir)
   end
+
+  @doc """
+  Creates a file-based sensor for ambient temperature or humidity.
+  """
+  def setup_file_sensor(value) do
+    temp_dir = create_temp_dir("file_sensor")
+    sensor_file = Path.join(temp_dir, "sensor.txt")
+    File.write!(sensor_file, value)
+
+    %{
+      temp_dir: temp_dir,
+      sensor_file: sensor_file
+    }
+  end
 end

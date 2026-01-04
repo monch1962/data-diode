@@ -3,8 +3,8 @@ defmodule DataDiode.RaceConditionTest do
   import ExUnit.CaptureLog
   require Logger
 
-  alias DataDiode.S2.Listener
   alias DataDiode.Metrics
+  alias DataDiode.S2.Listener
 
   setup do
     Application.put_env(:data_diode, :s2_port, 0)

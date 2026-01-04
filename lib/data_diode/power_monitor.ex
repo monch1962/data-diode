@@ -15,6 +15,24 @@ defmodule DataDiode.PowerMonitor do
   use GenServer
   require Logger
 
+  @type ups_status ::
+          %{
+            battery_level: non_neg_integer() | :unknown,
+            on_battery: boolean(),
+            runtime: String.t() | nil,
+            status: String.t() | nil,
+            source: :nut | :sysfs | :mock
+          }
+          | :unknown
+
+  @type power_status :: :on_battery | :on_line | :unknown
+
+  @type state :: %{
+          battery_level: non_neg_integer() | :unknown,
+          on_battery: boolean(),
+          power_status: power_status()
+        }
+
   # 10 seconds
   @ups_check_interval 10_000
   # Shutdown at 10%
@@ -24,11 +42,13 @@ defmodule DataDiode.PowerMonitor do
   # Warning at 50%
   @battery_low 50
 
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
   end
 
   @impl true
+  @spec init(:ok) :: {:ok, state()}
   def init(:ok) do
     Logger.info("PowerMonitor: Starting power monitoring")
     schedule_ups_check()
@@ -36,6 +56,7 @@ defmodule DataDiode.PowerMonitor do
   end
 
   @impl true
+  @spec handle_info(:check_ups, state()) :: {:noreply, state()}
   def handle_info(:check_ups, state) do
     ups_status = check_ups_status()
     new_state = process_ups_status(ups_status, state)
@@ -46,6 +67,7 @@ defmodule DataDiode.PowerMonitor do
   @doc """
   Manually check UPS status.
   """
+  @spec check_ups_status() :: ups_status()
   def check_ups_status do
     # Try NUT (Network UPS Tools) first
     case Application.get_env(:data_diode, :ups_monitoring, :nut) do

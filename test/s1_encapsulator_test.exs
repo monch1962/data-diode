@@ -13,7 +13,7 @@ defmodule DataDiode.S1.EncapsulatorTest do
 
     # Ensure Encapsulator is started (it might be already started by app, but we want a fresh one config-wise?)
     # The Encapsulator is a named process. If it's already running with old config, we might have issues.
-    # But since encapsulator looks up the port *inside* encapsulate_and_send? 
+    # But since encapsulator looks up the port *inside* encapsulate_and_send?
     # Let's check the code:
     # No, it resolves resolve_s2_port() inside init/1.
     # So we must RESTART the Encapsulator to pick up the new port.

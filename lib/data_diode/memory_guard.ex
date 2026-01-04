@@ -27,11 +27,29 @@ defmodule DataDiode.MemoryGuard do
   # Number of samples to establish baseline
   @baseline_samples 5
 
+  @type memory_stats :: %{
+          total: non_neg_integer(),
+          used: non_neg_integer(),
+          available: non_neg_integer(),
+          percent: float(),
+          buffers: non_neg_integer(),
+          cached: non_neg_integer(),
+          timestamp: integer()
+        }
+
+  @type state :: %{
+          baseline: memory_stats() | nil,
+          samples: [memory_stats()],
+          history: [memory_stats()]
+        }
+
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, Keyword.put_new(opts, :name, __MODULE__))
   end
 
   @impl true
+  @spec init(:ok) :: {:ok, state()}
   def init(:ok) do
     Logger.info("MemoryGuard: Starting memory monitoring")
     schedule_check()
@@ -39,6 +57,7 @@ defmodule DataDiode.MemoryGuard do
   end
 
   @impl true
+  @spec handle_info(:check_memory, state()) :: {:noreply, state()}
   def handle_info(:check_memory, state) do
     current = get_memory_usage()
     new_state = track_baseline(state, current)
@@ -77,6 +96,7 @@ defmodule DataDiode.MemoryGuard do
   @doc """
   Gets current memory usage statistics.
   """
+  @spec get_memory_usage() :: memory_stats()
   def get_memory_usage do
     # Read from configured meminfo path (default: /proc/meminfo)
     meminfo_path = Application.get_env(:data_diode, :meminfo_path, "/proc/meminfo")
@@ -115,6 +135,7 @@ defmodule DataDiode.MemoryGuard do
   @doc """
   Gets Erlang VM memory statistics.
   """
+  @spec get_vm_memory() :: keyword()
   def get_vm_memory do
     :erlang.memory()
   end

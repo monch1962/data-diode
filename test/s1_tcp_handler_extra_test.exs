@@ -14,7 +14,7 @@ defmodule DataDiode.S1.TCPHandlerExtraTest do
     state = %{
       socket: server_sock,
       src_ip: "127.0.0.1",
-      src_port: 12345
+      src_port: 12_345
     }
 
     on_exit(fn ->

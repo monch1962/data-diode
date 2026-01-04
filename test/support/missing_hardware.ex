@@ -95,6 +95,20 @@ defmodule DataDiode.MissingHardware do
   end
 
   @doc """
+  Creates environment with critical cold temperature.
+  """
+  def setup_critical_cold_temp(temp \\ -25) do
+    temp_dir = create_temp_dir("critical_cold")
+    thermal_dir = Path.join([temp_dir, "sys/class/thermal/thermal_zone0"])
+    File.mkdir_p!(thermal_dir)
+
+    millidegrees = trunc(temp * 1000)
+    File.write!(Path.join(thermal_dir, "temp"), "#{millidegrees}")
+
+    %{temp_dir: temp_dir, thermal_dir: thermal_dir, cpu_temp: temp}
+  end
+
+  @doc """
   Creates environment with NO UPS hardware.
   Most deployments don't have UPS monitoring.
   """

@@ -71,7 +71,7 @@ defmodule DataDiode.OperationalModulesTest do
     # Data forwarding
     capture_log(fn -> TCPHandler.handle_info({:tcp, s, "hello"}, state2) end)
     # Oversized
-    capture_log(fn -> TCPHandler.handle_info({:tcp, s, <<0::8_2000000>>}, state2) end)
+    capture_log(fn -> TCPHandler.handle_info({:tcp, s, <<0::size(8_000_000)>>}, state2) end)
     # Errors
     capture_log(fn -> TCPHandler.handle_info({:tcp_error, s, :einval}, state2) end)
     capture_log(fn -> TCPHandler.handle_info({:tcp_closed, s}, state2) end)

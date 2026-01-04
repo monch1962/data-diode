@@ -95,17 +95,24 @@ defmodule DataDiode.S1.Encapsulator do
     state = refill_tokens(state)
 
     cond do
+      # Check per-IP rate limit first
+      per_ip_rate_limit_exceeded?(src_ip) ->
+        DataDiode.Metrics.inc_errors("per_ip_rate_limit")
+        Logger.warning("S1 Encapsulator: Per-IP rate limit exceeded for #{src_ip}")
+        {:noreply, state}
+
+      # Then check global token bucket rate limit
       state.tokens <= 0 ->
-        DataDiode.Metrics.inc_errors()
+        DataDiode.Metrics.inc_errors("global_rate_limit")
 
         if rem(System.unique_integer([:positive]), 100) == 0 do
-          Logger.warning("S1 Encapsulator: Rate limit exceeded, dropping packets.")
+          Logger.warning("S1 Encapsulator: Global rate limit exceeded, dropping packets.")
         end
 
         {:noreply, state}
 
       not protocol_allowed?(payload) ->
-        DataDiode.Metrics.inc_errors()
+        DataDiode.Metrics.inc_errors("protocol_not_allowed")
         Logger.warning("S1 Encapsulator: Protocol guard blocked packet from #{src_ip}.")
         {:noreply, %{state | tokens: state.tokens - 1}}
 
@@ -238,5 +245,16 @@ defmodule DataDiode.S1.Encapsulator do
         DataDiode.Metrics.inc_errors()
         Logger.warning("S1 Encapsulator: Failed to send packet: #{inspect(reason)}")
     end
+  end
+
+  # Per-IP rate limiting helper
+  defp per_ip_rate_limit_exceeded?(src_ip) do
+    case DataDiode.RateLimiter.check_rate_limit(src_ip) do
+      :allow -> false
+      {:deny, _reason} -> true
+    end
+  rescue
+    # If RateLimiter is not available, allow the packet (fail open)
+    _ -> false
   end
 end

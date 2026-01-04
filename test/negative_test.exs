@@ -18,7 +18,7 @@ defmodule DataDiode.NegativeTest do
   end
 
   test "TCP Fuzzing: Oversized Packet" do
-    port = 45000
+    port = 45_000
     Application.put_env(:data_diode, :s1_port, port)
 
     # Start isolated listener
@@ -42,7 +42,7 @@ defmodule DataDiode.NegativeTest do
   end
 
   test "TCP Fuzzing: Garbage / Malformed HTTP" do
-    port = 45001
+    port = 45_001
     Application.put_env(:data_diode, :s1_port, port)
 
     {:ok, pid} = DataDiode.S1.Listener.start_link(name: :s1_fuzz_garbage)
@@ -152,7 +152,7 @@ defmodule DataDiode.NegativeTest do
     # Simulating actual network interface flapping is hard without OS privileges.
     # Instead, we verify that the Listener accepts connections after a "pause" or errors.
 
-    port = 45005
+    port = 45_005
     Application.put_env(:data_diode, :s1_port, port)
 
     {:ok, pid} = DataDiode.S1.Listener.start_link(name: :s1_flap_test)
@@ -241,7 +241,7 @@ defmodule DataDiode.NegativeTest do
   test "Edge Case: Connection Exhaustion (DoS)" do
     # Try to open 250 connections to S1
     # System default ulimit might be 256 or 1024, so 250 is safe but stressful for app
-    port = 45009
+    port = 45_009
     Application.put_env(:data_diode, :s1_port, port)
 
     {:ok, pid} = DataDiode.S1.Listener.start_link(name: :s1_dos_test)

@@ -25,7 +25,7 @@ defmodule DataDiode.PropertyTest do
 
     test "port validation accepts all valid ports (sampled)" do
       # Test a sampling of valid ports
-      valid_ports = [1, 80, 443, 8080, 502, 161, 65535]
+      valid_ports = [1, 80, 443, 8080, 502, 161, 65_535]
 
       Enum.each(valid_ports, fn port ->
         assert {:ok, ^port} = NetworkHelpers.validate_port(port)
@@ -34,7 +34,7 @@ defmodule DataDiode.PropertyTest do
 
     test "port validation rejects invalid ports (sampled)" do
       # Test a sampling of invalid ports (0 is actually valid in TCP/IP)
-      invalid_ports = [-1, 65536, 100_000]
+      invalid_ports = [-1, 65_536, 100_000]
 
       Enum.each(invalid_ports, fn port ->
         assert {:error, {:invalid_port, ^port}} = NetworkHelpers.validate_port(port)
