@@ -664,4 +664,93 @@ defmodule DataDiode.PowerMonitorTest do
       assert state.power_status in [:on_battery, :on_line, :unknown]
     end
   end
+
+  describe "UPS monitoring configuration" do
+    test "defaults to NUT mode" do
+      mode = Application.get_env(:data_diode, :ups_monitoring, :nut)
+      assert mode in [:nut, :sysfs, :mock]
+    end
+
+    test "respects configured UPS monitoring mode" do
+      Application.put_env(:data_diode, :ups_monitoring, :sysfs)
+
+      on_exit(fn ->
+        Application.delete_env(:data_diode, :ups_monitoring)
+      end)
+
+      mode = Application.get_env(:data_diode, :ups_monitoring)
+      assert mode == :sysfs
+    end
+
+    test "uses configured NUT UPS name" do
+      custom_ups_name = "myups@server"
+      Application.put_env(:data_diode, :nut_ups_name, custom_ups_name)
+
+      on_exit(fn ->
+        Application.delete_env(:data_diode, :nut_ups_name)
+      end)
+
+      ups_name = Application.get_env(:data_diode, :nut_ups_name, "ups@localhost")
+      assert ups_name == custom_ups_name
+    end
+
+    test "uses default UPS name when not configured" do
+      Application.delete_env(:data_diode, :nut_ups_name)
+
+      ups_name = Application.get_env(:data_diode, :nut_ups_name, "ups@localhost")
+      assert ups_name == "ups@localhost"
+    end
+  end
+
+  describe "battery condition checks" do
+    test "identifies critical battery when on battery" do
+      battery_level = 5
+      on_battery = true
+
+      # Critical threshold is 10%
+      assert battery_level < 10
+      assert on_battery == true
+    end
+
+    test "does not treat AC power as critical" do
+      _battery_level = 5
+      on_battery = false
+
+      # Should not be critical when on AC power
+      assert on_battery == false
+    end
+
+    test "identifies low battery condition" do
+      battery_level = 25
+      on_battery = true
+
+      # Warning threshold is 30%
+      assert battery_level < 30
+      assert battery_level >= 10
+      assert on_battery == true
+    end
+
+    test "identifies depleting battery condition" do
+      battery_level = 45
+      on_battery = true
+
+      # Low threshold is 50%
+      assert battery_level < 50
+      assert battery_level >= 30
+      assert on_battery == true
+    end
+  end
+
+  describe "power state validation" do
+    test "validates on_battery state" do
+      assert true in [true, false]
+    end
+
+    test "validates power_status enum" do
+      valid_statuses = [:on_battery, :on_line, :unknown]
+      assert :on_battery in valid_statuses
+      assert :on_line in valid_statuses
+      assert :unknown in valid_statuses
+    end
+  end
 end

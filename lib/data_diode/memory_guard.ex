@@ -11,6 +11,27 @@ defmodule DataDiode.MemoryGuard do
   - Tracks top memory-consuming processes
 
   Critical for systems that run for months without maintenance.
+
+  ## Example
+
+      # Get current memory usage
+      memory = DataDiode.MemoryGuard.get_memory_usage()
+      # %{total: 8589934592, used: 4294967296, available: 4294967296, percent: 50.0}
+
+      # Get VM-specific memory breakdown
+      vm_memory = DataDiode.MemoryGuard.get_vm_memory()
+      # %{total: 2000000000, processes: 1500000000, system: 300000000, ...}
+
+      # Get top memory-consuming processes
+      top_processes = DataDiode.MemoryGuard.get_top_processes(5)
+      # [
+      #   {DataDiode.S1.Encapsulator, "S1.Encapsulator", 150000000},
+      #   {DataDiode.S2.Decapsulator, "S2.Decapsulator", 120000000},
+      #   ...
+      # ]
+
+      # Manually trigger a memory check
+      :ok = DataDiode.MemoryGuard.check_memory()
   """
 
   use GenServer

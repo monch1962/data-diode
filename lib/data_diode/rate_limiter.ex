@@ -4,6 +4,26 @@ defmodule DataDiode.RateLimiter do
 
   Implements a sliding window rate limiting algorithm per source IP.
   Tracks packet counts and drops packets from IPs exceeding the threshold.
+
+  ## Example
+
+      # Check if a packet should be allowed
+      case DataDiode.RateLimiter.check_rate_limit("192.168.1.100") do
+        :allow ->
+          # Process the packet
+          :ok
+
+        {:deny, _reason} ->
+          # Drop the packet
+          :error
+      end
+
+      # Get current statistics for all tracked IPs
+      stats = DataDiode.RateLimiter.get_stats()
+      # %{"192.168.1.100" => {45, 100}, "10.0.0.1" => {12, 100}}
+
+      # Reset tracking for a specific IP (e.g., after a ban period)
+      :ok = DataDiode.RateLimiter.reset_ip("192.168.1.100")
   """
 
   use GenServer

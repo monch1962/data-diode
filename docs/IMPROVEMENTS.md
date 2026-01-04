@@ -21,7 +21,7 @@ This document summarizes the static analysis tools and testing improvements adde
 
 ### Testing Improvements
 
-3. **Property-Based Tests**
+1. **Property-Based Tests**
    - File: `test/property_test.exs`
    - 12 tests using StreamData generators
    - Tests invariants across random inputs
@@ -32,7 +32,7 @@ This document summarizes the static analysis tools and testing improvements adde
      - CRC32 checksums
      - Protocol validation
 
-4. **Pre-commit Hooks**
+2. **Pre-commit Hooks**
    - Automated quality checks before commits
    - Hook script: `.git/hooks/pre-commit`
    - Install script: `bin/install_hooks`
@@ -61,12 +61,14 @@ This document summarizes the static analysis tools and testing improvements adde
 ## 📈 Current State
 
 ### Test Count
+
 - **Before**: 308 tests
 - **After**: 335 tests (+27 tests)
 - **New property tests**: 12 tests
 - **Total test increase**: +9% more tests
 
 ### Code Quality Issues Found by Credo
+
 - **Consistency issues**: 1
 - **Warnings**: 4 (using `length/1` instead of empty list check)
 - **Refactoring opportunities**: 12
@@ -76,15 +78,18 @@ This document summarizes the static analysis tools and testing improvements adde
 ### Most Important Issues to Fix
 
 #### High Priority (Cyclomatic Complexity)
+
 1. `lib/data_diode/network_guard.ex:159` - Complexity 20 (max: 9)
 2. `lib/data_diode/power_monitor.ex:177` - Complexity 19 (max: 9)
 
 #### Medium Priority (Nesting Depth)
+
 1. `lib/data_diode/disk_cleaner.ex:160` - Depth 4 (max: 2)
 2. `lib/data_diode/s2/decapsulator.ex:32` - Depth 3 (max: 2)
 3. `lib/data_diode/s1/encapsulator.ex:226` - Depth 3 (max: 2)
 
 #### Low Priority (Warnings)
+
 - Replace `length(list) > 0` with `list != []`
 - Fix pattern matching consistency in `tcp_handler.ex`
 
@@ -131,6 +136,7 @@ Add these steps to your CI pipeline:
 ## 📚 Next Steps
 
 ### Immediate Actions
+
 1. ✅ Add Dialyzer - **COMPLETED**
 2. ✅ Add Credo - **COMPLETED**
 3. ✅ Add property-based tests - **COMPLETED**
@@ -140,18 +146,21 @@ Add these steps to your CI pipeline:
 ### Future Improvements
 
 #### High Impact, Medium Effort
+
 - [ ] Fix high-complexity functions (network_guard, power_monitor)
 - [ ] Reduce nesting depth in disk_cleaner, decapsulator, encapsulator
 - [ ] Replace `length/1` with empty list checks
 - [ ] Add more property-based tests for critical algorithms
 
 #### Medium Impact, Medium Effort
+
 - [ ] Add security scanning (Sobelow)
 - [ ] Add dependency vulnerability scanning (mix audit)
 - [ ] Add performance benchmarking
 - [ ] Add more integration tests for HealthAPI
 
 #### Lower Priority
+
 - [ ] Fix pattern matching consistency issues
 - [ ] Improve documentation coverage
 - [ ] Add more type specifications (@spec)

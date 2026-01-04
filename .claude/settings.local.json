@@ -4,7 +4,11 @@
       "Bash(mix test:*)",
       "Bash(ls:*)",
       "Bash(mix deps.get:*)",
-      "Bash(mix credo:*)"
+      "Bash(mix credo:*)",
+      "Bash(sort:*)",
+      "Bash(npx markdownlint-cli:*)",
+      "Bash(cat:*)",
+      "Bash(mix format:*)"
     ]
   }
 }

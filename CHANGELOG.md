@@ -77,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 #### Test Statistics
+
 - **Total Tests**: Increased from ~186 to **308 tests** (+66%)
 - **Test Coverage**: Improved from ~52% to **~59%** (+13%)
 - **Harsh Environment Coverage**:
@@ -88,12 +89,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **All Tests Passing**: Fixed all compilation errors and test failures
 
 #### GenServer Callback Testing
+
 - **MemoryGuard**: Added 7 new tests for periodic checks, baseline tracking, memory leak detection calculations, VM memory, and history tracking
 - **NetworkGuard**: Added 8 new tests for GenServer callbacks, interface configuration, flapping recovery, and history tracking
 - **PowerMonitor**: Added 8 new tests for GenServer callbacks, UPS status checking, and battery level thresholds
 - **Process Restart Handling**: Tests now gracefully handle GenServer restarts when system commands fail
 
 #### Code Quality
+
 - **Made Production Code Testable** - Refactored modules to support hardware simulation
   - Added configurable paths instead of hardcoded system paths
   - Made GenServers more resilient to missing dependencies
@@ -101,6 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Better separation of concerns for testing
 
 ### Fixed
+
 - Fixed `GenServer.call` errors in DiskCleaner tests (changed to `send/2`)
 - Fixed `Keyword.has_key?/2` errors with map return values (changed to `Map.has_key?/2`)
 - Fixed DateTime comparison in emergency cleanup (added proper DateTime conversion)
@@ -204,6 +208,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Dependencies
 
 #### New Dependencies
+
 - `plug_cowboy` ~ 2.6 - HTTP server for HealthAPI
 - `plug` ~ 1.14 - HTTP request handling
 - `jason` ~ 1.4 - JSON encoding/decoding
@@ -211,6 +216,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 #### README Updates
+
 - Added "Harsh Environment Operation" section
 - Documented all new monitoring modules
 - Added temperature threshold table
@@ -219,6 +225,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added deployment script documentation
 
 #### Module Documentation
+
 - Comprehensive `@moduledoc` for all harsh environment modules
 - Temperature thresholds and mitigation strategies
 - Network resilience and flapping protection
@@ -228,6 +235,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Performance
 
 #### Resource Management
+
 - Increased restart tolerance for unstable conditions
 - Health-based retention policies reduce disk I/O during stress
 - Memory garbage collection prevents exhaustion
@@ -236,6 +244,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Testing
 
 #### Coverage Notes
+
 - New harsh environment modules require production hardware/system files for comprehensive testing
 - Modules tested via public APIs and integration testing
 - Production-only HealthAPI (not started in test environment)
@@ -243,6 +252,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Overall coverage: ~47% (production modules excluded from test coverage)
 
 ### New Modules
+
 - **DataDiode.NetworkHelpers** - Centralized network utility functions
   - `parse_ip_address/1` - Safe IP address parsing with validation
   - `parse_ip_address_strict/1` - Strict parsing with error reporting
@@ -264,6 +274,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests write permissions before startup
 
 #### Features
+
 - **Continuous Rate Limiting** - Improved token bucket algorithm
   - Precise refill calculations based on elapsed time
   - Prevents rate limit "leakage" (previously allowed ~2x configured rate)
@@ -290,12 +301,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 #### Breaking Changes
+
 - **Environment Variable Naming** - More explicit port configuration
   - `LISTEN_PORT` → `LISTEN_PORT_TCP` (S1 TCP ingress)
   - New `LISTEN_PORT_UDP` for optional UDP ingress
   - Old `LISTEN_PORT` still supported for backward compatibility
 
 #### Code Quality
+
 - **Removed Dead Code**
   - Unreachable pattern match in `Decapsulator`
   - Duplicate configuration in `test.exs`
@@ -318,6 +331,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 #### Hardening
+
 - **Atom Safety** - Safe protocol atom conversion
   - Prevents atom table exhaustion attacks
   - Validates against protocol whitelist
@@ -333,6 +347,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 #### Module Documentation
+
 - Added comprehensive `@moduledoc` to:
   - `DataDiode` - Main application module
   - `DataDiode.S1.Encapsulator` - Packet encapsulation
@@ -340,6 +355,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All new utility modules
 
 #### README Updates
+
 - Updated configuration table with new environment variables
 - Added new modules to Key Files section
 - Documented recent code quality improvements
@@ -349,12 +365,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Testing
 
 #### Test Improvements
+
 - Updated tests to use new utility modules
 - Fixed rate limiting test for continuous algorithm
 - Updated disk cleaner tests for actual implementation
 - All tests passing (105/106, 1 pre-existing flaky test)
 
 #### Coverage
+
 - Current test coverage: **~92%**
 - Comprehensive security test suite
 - MITRE ATT&CK attack simulations
@@ -362,6 +380,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Performance
 
 #### Optimizations
+
 - **Continuous Rate Limiting** - More precise token management
 - **Reduced Code Duplication** - Better code cache efficiency
 - **Centralized Configuration** - Faster config access
@@ -369,6 +388,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Dependencies
 
 No new dependencies added. Existing dependencies:
+
 - `logger_json` ~ 5.0
 - `opentelemetry_api` ~ 1.0
 - `opentelemetry` ~ 1.0
@@ -378,11 +398,13 @@ No new dependencies added. Existing dependencies:
 ### Developer Experience
 
 #### Build System
+
 - Fixed deprecated Mix configuration
 - Added CI coverage reporting
 - Docker healthcheck for containerized deployments
 
 #### Code Maintainability
+
 - Centralized utilities reduce duplication
 - Better type specifications with `@spec`
 - Comprehensive documentation
@@ -391,6 +413,7 @@ No new dependencies added. Existing dependencies:
 ## [0.1.0] - Initial Release
 
 ### Features
+
 - Unidirectional data diode simulation
 - TCP to UDP encapsulation
 - Deep Packet Inspection (DPI) for protocol whitelisting
@@ -404,11 +427,13 @@ No new dependencies added. Existing dependencies:
 - Docker containerization
 
 ### Security
+
 - Protocol whitelisting (Modbus, DNP3, MQTT, SNMP)
 - Rate limiting (default: 1000 PPS)
 - MITRE ATT&CK coverage (T1071, T1499, T1565, T1496, T0837)
 
 ### Documentation
+
 - Comprehensive README
 - Operations guide
 - Troubleshooting guide

@@ -33,12 +33,26 @@ defmodule DataDiode do
   * Nuclear Facilities
   * Industrial Control Systems
 
-  For more information, see the README.md file.
+  ## Example
+
+  The Data Diode application is typically started as part of a supervision tree:
+
+      # In your application supervisor
+      children = [
+        {DataDiode.Application, []}
+      ]
+
+  For configuration options and usage, see the README.md file.
   """
 
   @doc """
   Example function (can be removed in production).
+
+  ## Returns
+
+  `:world` atom
   """
+  @spec hello() :: :world
   def hello do
     :world
   end

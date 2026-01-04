@@ -14,6 +14,7 @@ This document outlines how to measure and optimize the performance of the `data_
 ## 🧪 Running Benchmarks
 
 ### 1. Simple Load Testing
+
 Use the built-in Elixir load generator to test throughput with different payload sizes and concurrency levels.
 
 ```bash
@@ -23,24 +24,31 @@ elixir bin/diode_load_test.exs 50 4096 30000
 ```
 
 ### 2. Monitoring Under Load
+
 While running the load test, monitor system health in a separate terminal:
+
 ```bash
 ./bin/diode_status.sh
 ```
+
 Watch the **Error Count** and **Packet Count** to identify the saturation point.
 
 ## 🚀 Scaling & Optimization
 
 ### BEAM Tuning
+
 The application runs on the Erlang VM (BEAM), which is highly scalable. For high-throughput requirements:
+
 - **Scheduler Tuning**: Use `+S` beam flags if deploying on multi-core hardware.
 - **Port Limits**: Increase `ERL_MAX_PORTS` if handling > 1000 concurrent sockets.
 
 ### Hardware Bottlenecks
+
 - **CPU**: Encapsulation/Decapsulation is relatively lightweight, but JSON logging can become a bottleneck at > 10k packets/sec.
 - **Network**: UDP buffer sizes in the Linux kernel may need tuning (`sysctl net.core.rmem_max`) to prevent drops at ultra-high speeds.
 
 ## 🏁 Expected Benchmarks (Pi 4 Reference)
+
 - **Small Packets (64B)**: ~5,000 - 8,000 PPS.
 - **Large Packets (1MB)**: Near-wire speed (wired ethernet).
 - **Concurrency**: Up to 100 simultaneous connections (limited by current app config).

@@ -30,7 +30,7 @@ Target performance levels for stable, unintended operation.
 
 Recommended response commitments for support teams.
 
-1. **Critical Failure (Missed Heartbeat)**: 
+1. **Critical Failure (Missed Heartbeat)**:
    - SOC Alerting: Immediate.
    - Engineering Triage: Within 2 hours.
    - Field Dispatch: Within 4 hours (if remote).
@@ -48,9 +48,11 @@ SOC teams should configure alerts on the `HEALTH_PULSE` JSON logs:
 - **INFO**: `error_count > 5` (Potential network flapping or malformed ingress).
 
 ## 🛡️ Protocol Configuration & Security
+
 To harden the system against malicious traffic, the `data_diode` includes a Deep Packet Inspection (DPI) protocol guard.
 
 ### Configuring Whitelists
+
 Technicians can lock the diode to specific industrial protocols via the `ALLOWED_PROTOCOLS` environment variable in the `data_diode.service` file:
 
 - **Strict Mode**: `ALLOWED_PROTOCOLS="MODBUS"` (Only Modbus TCP allowed).
@@ -58,6 +60,7 @@ Technicians can lock the diode to specific industrial protocols via the `ALLOWED
 - **Open Mode**: `ALLOWED_PROTOCOLS="ANY"` (Allows all traffic with valid diode headers).
 
 ### Protocol Transport Matrix
+
 | Protocol | Transport | Port |
 | :--- | :--- | :--- |
 | **Modbus TCP** | TCP | 502 |
@@ -66,7 +69,9 @@ Technicians can lock the diode to specific industrial protocols via the `ALLOWED
 | **SNMP** | UDP | 161 / 162 |
 
 ### SOC Monitoring of Protocol Violations
+
 When a protocol violation occurs (e.g., someone attempts to send HTTP through a Modbus-only diode):
+
 1. The packet is **dropped immediately** on the S1 side.
 2. A `warning` is emitted in the logs: `S1 Encapsulator: Protocol guard blocked packet from 1.2.3.4`.
 3. The `error_count` metric is incremented.

@@ -37,7 +37,7 @@ The function of Service 1 is to accept connections from potentially untrusted cl
 - **Encapsulation:** When data is received, it extracts the original TCP source IP address (4 bytes) and Port (2 bytes). This metadata is prepended to the original payload, creating a custom packet header.
 - **Egress:** Forwards the newly encapsulated binary packet across the simulated security boundary using a UDP socket to Service 2.
 
-**2. Service 2 (S2): Secured Network Egress (UDP to Storage)**
+### 2. Service 2 (S2): Secured Network Egress (UDP to Storage)
 
 The function of Service 2 is to safely receive data from the unsecured side, verify the format, and write the contents to the secure system.
 
@@ -46,9 +46,11 @@ The function of Service 2 is to safely receive data from the unsecured side, ver
 - **Processing:** Logs the metadata and simulates writing the original payload to secure storage. Crucially, S2 never opens any TCP connection and does not send any data back.
 
 ## 🛡️ Protocol Whitelisting & DPI
+
 To prevent unauthorized command-and-control (C2) or data exfiltration, the Data Diode uses **Deep Packet Inspection (DPI)** to verify the contents of every packet against known industrial protocol signatures.
 
 ### Configuration
+
 Use the `ALLOWED_PROTOCOLS` environment variable to define a comma-separated list of allowed protocols:
 
 ```bash
@@ -57,6 +59,7 @@ export ALLOWED_PROTOCOLS="MODBUS,MQTT"
 ```
 
 ### Supported Protocols
+
 | Key | Protocol | Primary Transport | Standard Port | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | **MODBUS** | Modbus TCP | TCP | 502 | Industry standard for PLC communication. |
@@ -108,6 +111,7 @@ The application is configured via environment variables. For OT deployments (e.g
 | `DISK_CLEANUP_BATCH_SIZE` | Files to Delete Per Cleanup | 100 | 50 |
 
 ### Harsh Environment Configuration
+
 Additional environment variables for harsh environment monitoring:
 
 | Variable | Purpose | Default |
@@ -121,6 +125,7 @@ Additional environment variables for harsh environment monitoring:
 | `S2_INTERFACE` | S2 network interface name | `eth1` |
 
 ### OT Hardening & Stability
+
 - **Configuration Validation**: All configuration is validated at application startup to prevent runtime failures with invalid settings.
 - **Centralized Utilities**: Shared `NetworkHelpers` and `ConfigHelpers` modules eliminate code duplication and provide consistent configuration access.
 - **Continuous Rate Limiting**: Improved token bucket algorithm with precise refill calculations prevents rate limit "leakage" (previously allowed ~2x configured rate).
@@ -136,7 +141,6 @@ Additional environment variables for harsh environment monitoring:
 - **Clock Drift Immunity**: Filenames on the secure side (S2) use monotonic unique integers to prevent collisions during sudden NTP jumps.
 - **Resilient Supervision**: The app uses a multi-layered supervisor tree. Service 1 handlers are `:temporary` to prevent supervisor saturation during network flapping.
 
-
 ## 🛡️ Security Posture & MITRE ATT&CK Analysis
 
 This project implements specific defenses against common OT/ICS attack vectors, verified by the `test/security_attack_test.exs` suite.
@@ -151,7 +155,9 @@ This project implements specific defenses against common OT/ICS attack vectors, 
 | **T0837** | Impact | Loss of Availability (Thermal) | **Thermal Watchdog**:<br>Hardware watchdog stops pulsing if CPU temp > 80°C, forcing safety reboot. | `Thermal Cutoff` (NegativeTest) |
 
 ### Running Security Tests
+
 To execute the security simulation suite:
+
 ```bash
 mix test test/security_attack_test.exs
 ```
@@ -161,11 +167,14 @@ mix test test/security_attack_test.exs
 Instructions for technicians deploying in isolated OT networks:
 
 1. **Build the Release**:
+
    ```bash
    MIX_ENV=prod mix release
    ```
+
 2. **Transfer to Pi**: Copy the `_build/prod/rel/data_diode` directory to the target device.
 3. **Environment Setup**: Create an `.env` file or export variables:
+
    ```bash
    export LISTEN_IP=10.0.0.5
    export LISTEN_PORT_TCP=502     # Map incoming Modbus to S1 (TCP)
@@ -173,7 +182,9 @@ Instructions for technicians deploying in isolated OT networks:
    export LISTEN_IP_S2=127.0.0.1
    export LISTEN_PORT_S2=42001    # Internal diode link (UDP)
    ```
+
 4. **Start Service**:
+
    ```bash
    ./bin/data_diode start
    ```
@@ -183,19 +194,25 @@ Instructions for technicians deploying in isolated OT networks:
 In remote deployments, power cuts are a common occurrence. To ensure the Data Diode resumes operation automatically after power is restored to the Raspberry Pi:
 
 ### 1. Systemd Service Deployment
+
 Technicians should use `systemd` to manage the application. This ensures the app starts on boot and restarts automatically if it ever exits.
 
 A template is provided in [`deploy/data_diode.service.sample`](deploy/data_diode.service.sample). To use it:
 
 1. Copy the sample file:
+
    ```bash
    sudo cp deploy/data_diode.service.sample /etc/systemd/system/data_diode.service
    ```
+
 2. Edit the file to match the local network configuration:
+
    ```bash
    sudo nano /etc/systemd/system/data_diode.service
    ```
+
 3. Enable and start the service:
+
    ```bash
    sudo systemctl daemon-reload
    sudo systemctl enable data_diode
@@ -203,12 +220,15 @@ A template is provided in [`deploy/data_diode.service.sample`](deploy/data_diode
    ```
 
 ### 2. Startup Resilience
+
 The application is designed to be "cold-start" resilient:
+
 - **Stateless Recovery**: S1 and S2 do not maintain long-term session state. Once the service is up, it is immediately ready to handle new packets
 - **Retry Logic**: If the OS takes time to release ports after a hard reboot, the Elixir supervisor will automatically retry binding (20 attempts every 5 seconds)
 - **Network Dependency**: The `After=network.target` directive ensures the app waits for the network stack before attempting to bind listeners
 
 ### 3. SD Card Protection
+
 To prevent filesystem corruption during power loss, it is highly recommended to use the Raspberry Pi's "Overlay File System" (via `raspi-config`) to make the system partition read-only.
 
 ## 🌡️ Harsh Environment Operation
@@ -216,7 +236,9 @@ To prevent filesystem corruption during power loss, it is highly recommended to 
 For deployments in extreme or inaccessible environments (remote field sites, industrial plants, outdoor enclosures), the data diode includes comprehensive autonomous monitoring and self-healing capabilities:
 
 ### Environmental Monitoring
+
 The `DataDiode.EnvironmentalMonitor` module continuously tracks thermal conditions:
+
 - **Multi-Zone Temperature Monitoring**: CPU, storage, and ambient temperature tracking
 - **Humidity Sensing**: Support for DHT22 and DS18B20 environmental sensors
 - **Thermal Hysteresis**: 5°C delta prevents rapid cooling/heating cycling
@@ -224,35 +246,45 @@ The `DataDiode.EnvironmentalMonitor` module continuously tracks thermal conditio
 - **Emergency Shutdown**: Prevents hardware damage at critical temperatures (75°C CPU, -20°C storage)
 
 ### Network Resilience
+
 The `DataDiode.NetworkGuard` module ensures network reliability in unstable conditions:
+
 - **Interface Flapping Detection**: Identifies rapid state changes (5+ transitions in 5 minutes)
 - **Automatic Recovery**: Attempts interface restart with exponential backoff (5s → 160s)
 - **ARP Cache Management**: Clears stale ARP entries to restore connectivity
 - **Status Monitoring**: Tracks S1/S2 interface health every 30 seconds
 
 ### Power Management
+
 The `DataDiode.PowerMonitor` module provides UPS integration for power stability:
+
 - **UPS Monitoring**: Supports NUT (Network UPS Tools) and sysfs power supply monitoring
 - **Graceful Shutdown**: Automatic safe shutdown at 10% battery
 - **Low Power Mode**: Activates at 30% battery to extend runtime
 - **Power Event Logging**: Records all power transitions for analysis
 
 ### Memory Protection
+
 The `DataDiode.MemoryGuard` module prevents memory exhaustion in long-running systems:
+
 - **Memory Leak Detection**: Tracks baseline and alerts on 50% growth
 - **Automatic Garbage Collection**: Triggers at 80% memory usage
 - **Recovery Actions**: Restarts non-critical processes at 90% usage
 - **Historical Analysis**: Maintains 100-sample memory history for trend detection
 
 ### Enhanced Storage Management
+
 The `DataDiode.DiskCleaner` module provides intelligent storage management:
+
 - **Health-Based Retention**: Doubles data retention during system stress (2x multiplier)
 - **Emergency Cleanup**: Immediate action when disk space < 5%
 - **Log Rotation**: Automatic daily rotation with 90-day retention
 - **Integrity Verification**: Periodic data integrity checks every 2 hours
 
 ### Remote Monitoring API
+
 The `DataDiode.HealthAPI` module provides HTTP endpoints for remote monitoring (production only):
+
 - **Health Status**: `GET /api/health` - Comprehensive system health
 - **Metrics**: `GET /api/metrics` - Operational metrics and throughput
 - **Environment**: `GET /api/environment` - Temperature and sensor readings
@@ -263,12 +295,15 @@ The `DataDiode.HealthAPI` module provides HTTP endpoints for remote monitoring (
 **Authentication**: Requires `HEALTH_API_TOKEN` environment variable for control endpoints.
 
 ### Deployment Script
+
 A comprehensive deployment script is provided for harsh environment setups:
+
 ```bash
 ./deployment/deploy-for-harsh-environment.sh
 ```
 
 This script configures:
+
 - Separate data partition on `/data`
 - Log rotation with compression
 - Kernel parameter tuning (TCP keepalive, memory management)
@@ -277,6 +312,7 @@ This script configures:
 - Secure API token generation
 
 ### Temperature Thresholds
+
 | Condition | CPU Temp | Ambient Temp | Action |
 |-----------|----------|--------------|--------|
 | Normal | < 65°C | 5-70°C | None |
@@ -286,6 +322,7 @@ This script configures:
 | Critical Cold | N/A | < -20°C | Emergency shutdown |
 
 ### Harsh Environment Configuration
+
 Additional environment variables for harsh environments:
 
 | Variable | Purpose | Default |
@@ -301,7 +338,9 @@ Additional environment variables for harsh environments:
 For mission-critical deployments where on-site access is limited, the application includes autonomous health management:
 
 ### 1. JSON Health Pulses (Telemetry)
+
 The `DataDiode.SystemMonitor` emits a structured JSON log every 60 seconds (look for `HEALTH_PULSE` in logs). This includes:
+
 - **Uptime**: Total seconds since service start
 - **Resource Usage**: CPU Temperature, Memory (MB), and Disk Free %
 - **Throughput**: Total packets forwarded and error counts
@@ -309,6 +348,7 @@ The `DataDiode.SystemMonitor` emits a structured JSON log every 60 seconds (look
 **Tip:** Remote monitoring platforms can alert on `cpu_temp > 80` or `disk_free_percent < 10`.
 
 ### 2. End-to-End Channel Heartbeat
+
 Service 1 automatically generates a "HEARTBEAT" packet every 5 minutes.
 
 - **S1.Heartbeat**: Simulates a packet through the entire code path
@@ -317,10 +357,13 @@ Service 1 automatically generates a "HEARTBEAT" packet every 5 minutes.
 **Note:** This verifies both services and the physical diode hardware.
 
 ### 3. Autonomous Disk Maintenance
+
 The `DataDiode.DiskCleaner` monitors storage hourly. If disk space falls below **15%**, it automatically deletes the oldest .dat files (configurable batch size) to prevent service interruption.
 
 ### 4. Hardware Watchdog (Pi Integration)
+
 To recover from hard OS/VM hangs, enable the Raspberry Pi hardware watchdog:
+
 1. Load the module: `sudo modprobe bcm2835_wdt`
 2. Add `heart=on` to your environment variables or configure the `heart` daemon to pulse the watchdog.
 
@@ -329,45 +372,61 @@ To recover from hard OS/VM hangs, enable the Raspberry Pi hardware watchdog:
 If the diode stops forwarding data, follow these steps:
 
 ### 1. Check Connectivity
+
 Verify the listener is bound to the correct interface:
+
 ```bash
 ss -tulpn | grep 42000  # S1 (TCP)
 ss -tulpn | grep 42001  # S2 (UDP)
 ```
 
 ### 2. Inspect JSON Logs
+
 Logs are located in `stdout` or the system journal. Look for `error` level events:
+
 - `S1: Listener socket fatal error`: Usually means the port is already in use by another process.
 - `S1: Failed to activate handler`: Local network congestion or socket ownership race.
 - `S2: UDP Listener fatal error`: UDP socket closed by the OS/Kernel.
 
 ### 3. Supervisor Recovery
+
 The system automatically attempts to restart crashed components up to 20 times every 5 seconds. If it exceeds this, the entire application will exit. Check for:
+
 - `reached_max_restart_intensity`: Indicates a persistent hardware/OS failure (e.g., interface down).
 
 ### 4. Direct Node Inspection
+
 If IEx is included in the release, you can attach to the running node:
+
 ```bash
 ./bin/data_diode remote
 ```
+
 Run `DataDiode.S1.Listener.port()` to confirm the active port.
 
 ## ⚡ Performance Benchmarking
+
 To establish operational baselines and verify scaling on industrial hardware, the project includes an automated load testing suite.
 
 ### Automated Load Test
+
 The turn-key solution automates the "start -> test -> results -> stop" lifecycle:
+
 ```bash
 # Usage: ./bin/run_load_test.sh <concurrency> <payload_bytes> <duration_ms>
 ./bin/run_load_test.sh 10 1024 10000
 ```
+
 Detailed results, including packets per second and bandwidth throughput, are automatically captured into timestamped log files. See [`PERFORMANCE.md`](./PERFORMANCE.md) for deeper analysis.
 
 ## 🧪 Testing & Quality Assurance
 
 ### Test Coverage
+
 The project maintains a high quality bar for unattended operation through an exhaustive test suite.
-- **Current Coverage**: **~59%** (308 passing tests)
+
+- **Current Coverage**: **82.91%** (466 passing tests)
+- **Recent Improvements**: +91 tests and +20.34 percentage points in coverage
 - **Robustness Suite**: Includes `test/long_term_robustness_test.exs` which simulates:
   - Disk-full scenarios.
   - Network interface flapping.
@@ -375,32 +434,58 @@ The project maintains a high quality bar for unattended operation through an exh
   - Clock jumps (NTP drift).
 - **Security Suite**: Comprehensive MITRE ATT&CK attack simulation in `test/security_attack_test.exs`.
 - **Property Tests**: Verification of protocol parsing, rate limiting, and data integrity.
-- **Harsh Environment Tests**: Comprehensive testing for environmental monitoring, power management, and network resilience.
+- **Harsh Environment Tests**: Comprehensive testing for environmental monitoring, power management, and network resilience with 85%+ coverage.
 - **GenServer Callback Tests**: Full coverage of periodic checks, state management, and error recovery.
+- **API Integration Tests**: Full HTTP endpoint testing for HealthAPI with 87% coverage.
 
 To run verification locally:
+
 ```bash
 mix test --cover
 ```
 
+### Mix Tasks for Operations
+
+The project includes convenient mix tasks for operational monitoring:
+
+```bash
+# Show comprehensive system status
+mix diode.status
+
+# Perform health check (checks processes, memory, network, disk)
+mix diode.health
+
+# Show rate limiting statistics for all tracked IPs
+mix diode.rate_stats
+
+# Reset rate limit for a specific IP
+mix diode.reset_ip 192.168.1.100
+```
+
+These tasks provide quick visibility into system health without needing to access logs directly.
+
 ### Harsh Environment Testing
+
 The project includes specialized test infrastructure for validating graceful degradation when hardware is unavailable:
 
 **Test Support Modules**:
+
 - `test/support/hardware_fixtures.ex` - Creates simulated hardware (thermal sensors, UPS, memory, network interfaces)
 - `test/support/missing_hardware.ex` - Simulates missing or broken hardware for testing graceful degradation
 
 **Test Coverage by Module**:
+
 | Module | Coverage | Tests |
 |--------|----------|-------|
-| EnvironmentalMonitor | 62.83% | Temperature sensors, critical conditions, missing sensors |
-| MemoryGuard | 49.51% | Memory monitoring, leak detection, baseline tracking, GenServer callbacks |
-| DiskCleaner | 58.10% | Emergency cleanup, log rotation, integrity checks |
-| NetworkGuard | 14.10% | Interface flapping, recovery, configuration variations, GenServer callbacks |
-| PowerMonitor | 43.33% | UPS monitoring, battery levels, AC power, GenServer callbacks |
-| HealthAPI | 0.76% | Helper functions, data parsing (API tested in integration) |
+| EnvironmentalMonitor | 79.17% | Temperature sensors, critical conditions, missing sensors |
+| MemoryGuard | 85.98% | Memory monitoring, leak detection, baseline tracking, GenServer callbacks |
+| DiskCleaner | 67.59% | Emergency cleanup, log rotation, integrity checks |
+| NetworkGuard | 69.00% | Interface flapping, recovery, configuration variations, GenServer callbacks |
+| PowerMonitor | 64.44% | UPS monitoring, battery levels, AC power, GenServer callbacks |
+| HealthAPI | 87.18% | HTTP endpoints, JSON responses, health checks, authentication, integration tests |
 
 **Testing Capabilities**:
+
 - Simulates temperature sensors (CPU, ambient, storage) in `/sys/class/thermal`
 - Mocks UPS battery levels and power supply status
 - Creates fake `/proc/meminfo` for memory testing
@@ -408,6 +493,7 @@ The project includes specialized test infrastructure for validating graceful deg
 - Validates graceful degradation when sensors are missing or broken
 
 ### Running Harsh Environment Tests
+
 To run tests for specific harsh environment modules:
 
 ```bash
@@ -427,6 +513,7 @@ mix test test/environmental_monitor_test.exs test/memory_guard_test.exs \
 ```
 
 ### Testing Graceful Degradation
+
 The test infrastructure allows you to verify that the system behaves correctly when hardware is unavailable:
 
 ```bash
@@ -441,7 +528,9 @@ mix test test/network_guard_test.exs
 ```
 
 ### Code Quality Improvements
+
 Recent codebase improvements include:
+
 - Removed all unreachable dead code and duplicate configurations
 - Fixed deprecated Mix configuration syntax
 - Extracted 100+ lines of duplicate code into shared utilities
@@ -459,6 +548,7 @@ The project includes several tools to maintain code quality and catch bugs early
 ### Static Analysis
 
 #### Dialyzer (Type Checking)
+
 Dialyzer performs static analysis of Elixir code to find type discrepancies and bugs.
 
 ```bash
@@ -473,12 +563,14 @@ mix dialyzer --format short
 ```
 
 **What it catches:**
+
 - Type mismatches in function calls
 - Pattern matching errors
 - Race conditions
 - Unused functions
 
 #### Credo (Code Quality)
+
 Credo is a static code analysis tool that checks code style and design consistency.
 
 ```bash
@@ -496,6 +588,7 @@ mix credo --format html
 ```
 
 **What it checks:**
+
 - Code complexity (cyclomatic complexity, nesting depth)
 - Code readability (line length, naming conventions)
 - Design issues (code duplication, module design)
@@ -538,22 +631,26 @@ mix test test/property_test.exs
 Recommended workflow for contributing:
 
 1. **Make your changes**
+
    ```bash
    # Edit code
    ```
 
 2. **Format code**
+
    ```bash
    mix format
    ```
 
 3. **Run static analysis**
+
    ```bash
    mix credo --strict
    mix dialyzer
    ```
 
 4. **Run tests**
+
    ```bash
    mix test                    # Run all tests
    mix test --cover            # With coverage report
@@ -561,6 +658,7 @@ Recommended workflow for contributing:
    ```
 
 5. **Commit**
+
    ```bash
    git add .
    git commit -m "Description of changes"

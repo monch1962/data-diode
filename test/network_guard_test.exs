@@ -316,6 +316,7 @@ defmodule DataDiode.NetworkGuardTest do
       }
 
       state = :sys.get_state(pid)
+
       entry = %{
         s1_up: current_state.s1.up,
         s2_up: current_state.s2.up,
@@ -339,19 +340,22 @@ defmodule DataDiode.NetworkGuardTest do
       old_entry = %{
         s1_up: true,
         s2_up: true,
-        timestamp: now - 400_000  # 6 minutes 40 seconds ago (> 5 minute window)
+        # 6 minutes 40 seconds ago (> 5 minute window)
+        timestamp: now - 400_000
       }
 
       recent_entry = %{
         s1_up: false,
         s2_up: true,
-        timestamp: now - 60_000  # 1 minute ago (within 5 minute window)
+        # 1 minute ago (within 5 minute window)
+        timestamp: now - 60_000
       }
 
       very_recent_entry = %{
         s1_up: true,
         s2_up: false,
-        timestamp: now - 10_000  # 10 seconds ago (within 5 minute window)
+        # 10 seconds ago (within 5 minute window)
+        timestamp: now - 10_000
       }
 
       history = [very_recent_entry, recent_entry, old_entry]
@@ -381,7 +385,8 @@ defmodule DataDiode.NetworkGuardTest do
           %{
             s1_up: rem(i, 2) == 0,
             s2_up: true,
-            timestamp: now - i * 40_000  # Each 40 seconds apart
+            # Each 40 seconds apart
+            timestamp: now - i * 40_000
           }
         end)
 
@@ -549,11 +554,13 @@ defmodule DataDiode.NetworkGuardTest do
 
       # Set state as flapping with interface down
       state = :sys.get_state(pid)
+
       flapping_state = %{
-        state |
-        flapping: true,
-        interface_state: %{s1: :down, s2: :up}
+        state
+        | flapping: true,
+          interface_state: %{s1: :down, s2: :up}
       }
+
       :sys.replace_state(pid, fn _ -> flapping_state end)
 
       # Disable auto-recovery to ensure we don't attempt it
@@ -587,11 +594,13 @@ defmodule DataDiode.NetworkGuardTest do
 
       # Set state with interface down and NOT flapping
       state = :sys.get_state(pid)
+
       down_state = %{
-        state |
-        flapping: false,
-        interface_state: %{s1: :down, s2: :up}
+        state
+        | flapping: false,
+          interface_state: %{s1: :down, s2: :up}
       }
+
       :sys.replace_state(pid, fn _ -> down_state end)
 
       # Trigger check
