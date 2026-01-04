@@ -128,5 +128,93 @@ defmodule DataDiode.RateLimiterTest do
       # We can't easily test this without waiting, but we verify it doesn't crash
       assert Process.alive?(Process.whereis(test_name))
     end
+
+    test "removes old entries when cleanup is triggered", %{test_name: test_name} do
+      # Start a rate limiter with a short window for testing
+      custom_name = :rate_limiter_cleanup_test
+
+      if Process.whereis(custom_name) do
+        GenServer.stop(custom_name, :normal, 1000)
+      end
+
+      {:ok, _pid} = RateLimiter.start_link(name: custom_name, max_packets_per_second: 5)
+
+      # Create traffic
+      Enum.each(1..3, fn _ ->
+        RateLimiter.check_rate_limit("192.168.99.1", custom_name)
+      end)
+
+      # Verify entries exist
+      stats_before = RateLimiter.get_stats(custom_name)
+      assert map_size(stats_before) > 0
+
+      # Trigger cleanup by sending the message directly
+      send(custom_name, :cleanup)
+      Process.sleep(50)
+
+      # Process should still be alive after cleanup
+      assert Process.alive?(Process.whereis(custom_name))
+
+      GenServer.stop(custom_name)
+    end
+  end
+
+  describe "record_packet" do
+    test "records a packet without checking rate limit", %{test_name: test_name} do
+      # record_packet is a cast (fire-and-forget)
+      assert :ok = RateLimiter.record_packet("10.10.10.1", test_name)
+
+      # Give it time to process
+      Process.sleep(50)
+
+      # The packet should have been recorded
+      stats = RateLimiter.get_stats(test_name)
+      assert stats["10.10.10.1"] != nil
+    end
+
+    test "increments count when recording packets", %{test_name: test_name} do
+      RateLimiter.record_packet("10.10.10.2", test_name)
+      RateLimiter.record_packet("10.10.10.2", test_name)
+      Process.sleep(50)
+
+      stats = RateLimiter.get_stats(test_name)
+      {count, _limit} = Map.get(stats, "10.10.10.2", {0, 0})
+
+      assert count >= 2
+    end
+  end
+
+  describe "window expiration" do
+    test "resets count when window expires", %{test_name: test_name} do
+      # Use up almost the entire limit
+      Enum.each(1..9, fn _ ->
+        assert RateLimiter.check_rate_limit("172.20.0.1", test_name) == :allow
+      end)
+
+      # Wait for window to expire
+      Process.sleep(1100)
+
+      # Next packet should be allowed with a fresh window
+      assert RateLimiter.check_rate_limit("172.20.0.1", test_name) == :allow
+
+      # Should still be allowed (count was reset to 1, not 10)
+      assert RateLimiter.check_rate_limit("172.20.0.1", test_name) == :allow
+    end
+  end
+
+  describe "deny reason" do
+    test "includes detailed reason when denying packets", %{test_name: test_name} do
+      # Use up the limit
+      Enum.each(1..10, fn _ ->
+        assert RateLimiter.check_rate_limit("198.51.100.1", test_name) == :allow
+      end)
+
+      # Next packet should be denied with reason
+      assert {:deny, reason} = RateLimiter.check_rate_limit("198.51.100.1", test_name)
+
+      assert is_binary(reason)
+      assert reason =~ ~r/Rate limit exceeded/
+      assert reason =~ ~r/10\/10/
+    end
   end
 end

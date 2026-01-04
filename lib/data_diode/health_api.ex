@@ -259,12 +259,15 @@ defmodule DataDiode.HealthAPI do
           {:ok, stat} ->
             # Convert mtime to DateTime if it's not already
             case stat.mtime do
-              %DateTime{} = dt -> dt
+              %DateTime{} = dt ->
+                dt
+
               {{_y, _m, _d}, {_h, _min, _s}} = erl_time ->
                 # Convert Erlang-style tuple to DateTime
                 erl_time
                 |> NaiveDateTime.from_erl!()
                 |> DateTime.from_naive!("Etc/UTC")
+
               _ ->
                 DateTime.from_unix!(0)
             end
@@ -374,13 +377,17 @@ defmodule DataDiode.HealthAPI do
   defp critical_storage?(storage) do
     storage.disk_usage != %{} and
       not Map.has_key?(storage.disk_usage, :error) and
-      String.to_integer(storage.disk_usage[:use_percent] || storage.disk_usage["use_percent"] || "0") >= 95
+      String.to_integer(
+        storage.disk_usage[:use_percent] || storage.disk_usage["use_percent"] || "0"
+      ) >= 95
   end
 
   defp warning_storage?(storage) do
     storage.disk_usage != %{} and
       not Map.has_key?(storage.disk_usage, :error) and
-      String.to_integer(storage.disk_usage[:use_percent] || storage.disk_usage["use_percent"] || "0") >= 90
+      String.to_integer(
+        storage.disk_usage[:use_percent] || storage.disk_usage["use_percent"] || "0"
+      ) >= 90
   end
 
   defp all_processes_alive?(processes) do

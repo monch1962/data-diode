@@ -170,7 +170,14 @@ defmodule DataDiode.HealthAPIIntegrationTest do
       conn = conn(:get, "/api/environment") |> DataDiode.HealthAPI.call(@opts)
 
       assert {:ok, json} = Jason.decode(conn.resp_body)
-      assert json["status"] in ["normal", "warning_hot", "critical_hot", "warning_cold", "critical_cold"]
+
+      assert json["status"] in [
+               "normal",
+               "warning_hot",
+               "critical_hot",
+               "warning_cold",
+               "critical_cold"
+             ]
     end
   end
 
@@ -197,12 +204,14 @@ defmodule DataDiode.HealthAPIIntegrationTest do
       # On macOS or when interfaces don't exist, they may not be present
       if Map.has_key?(json["interfaces"], "s1") do
         assert Map.has_key?(json["interfaces"]["s1"], "up")
+
         assert is_boolean(json["interfaces"]["s1"]["up"]) or
                  json["interfaces"]["s1"]["up"] == "unknown"
       end
 
       if Map.has_key?(json["interfaces"], "s2") do
         assert Map.has_key?(json["interfaces"]["s2"], "up")
+
         assert is_boolean(json["interfaces"]["s2"]["up"]) or
                  json["interfaces"]["s2"]["up"] == "unknown"
       end

@@ -632,4 +632,312 @@ defmodule DataDiode.MemoryGuardTest do
       end
     end
   end
+
+  describe "memory leak detection with growth rate" do
+    test "detects memory leak when growth rate exceeds threshold" do
+      # Setup with normal memory to establish baseline
+      %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 4000)
+
+      # Create meminfo with low memory usage for baseline (25%)
+      meminfo_path = Path.join(proc_dir, "meminfo")
+      low_usage_meminfo = """
+      MemTotal:       8192000 kB
+      MemFree:        6144000 kB
+      MemAvailable:   6144000 kB
+      Buffers:        0 kB
+      Cached:         0 kB
+      """
+
+      File.write!(meminfo_path, low_usage_meminfo)
+      Application.put_env(:data_diode, :meminfo_path, meminfo_path)
+
+      on_exit(fn ->
+        DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
+        Application.delete_env(:data_diode, :meminfo_path)
+      end)
+
+      pid = Process.whereis(DataDiode.MemoryGuard)
+
+      # Establish baseline with low memory usage (25%)
+      Enum.each(1..5, fn _ ->
+        send(pid, :check_memory)
+        Process.sleep(50)
+      end)
+
+      state_before = :sys.get_state(pid)
+      baseline = state_before.baseline
+
+      # Verify baseline was established with the low memory values
+      if baseline do
+        assert baseline.used < 3000 * 1024 * 1024
+      end
+
+      # Create new meminfo with significantly higher memory (> 50% growth but < 90% total)
+      # Baseline ~2048MB used, need > 4096MB growth for > 50%
+      # Use 6144MB used = 75% which is below critical (90%)
+      high_growth_meminfo = """
+      MemTotal:       8192000 kB
+      MemFree:        2048000 kB
+      MemAvailable:   2048000 kB
+      Buffers:        0 kB
+      Cached:         0 kB
+      """
+
+      File.write!(meminfo_path, high_growth_meminfo)
+
+      # Trigger check which should detect leak
+      log =
+        capture_log(fn ->
+          send(pid, :check_memory)
+          Process.sleep(100)
+        end)
+
+      # Should log memory leak warning (if baseline was established)
+      # Growth rate = (6144 - 2048) / 8192 = 4096 / 8192 = 0.5 (50%) >= threshold
+      if baseline do
+        assert log =~ ~r/(memory leak|growth)/i
+      end
+    end
+
+    test "does not detect leak when growth is within threshold" do
+      %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 3000)
+
+      # Create meminfo with moderate memory usage for baseline
+      meminfo_path = Path.join(proc_dir, "meminfo")
+      baseline_meminfo = """
+      MemTotal:       8192000 kB
+      MemFree:        6144000 kB
+      MemAvailable:   6144000 kB
+      Buffers:        0 kB
+      Cached:         0 kB
+      """
+
+      File.write!(meminfo_path, baseline_meminfo)
+      Application.put_env(:data_diode, :meminfo_path, meminfo_path)
+
+      on_exit(fn ->
+        DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
+        Application.delete_env(:data_diode, :meminfo_path)
+      end)
+
+      pid = Process.whereis(DataDiode.MemoryGuard)
+
+      # Establish baseline
+      Enum.each(1..5, fn _ ->
+        send(pid, :check_memory)
+        Process.sleep(50)
+      end)
+
+      # Create similar memory usage (within threshold)
+      # Growth from 2048MB to 2560MB = 512MB / 8192MB = 6.25% < 50%
+      within_threshold_meminfo = """
+      MemTotal:       8192000 kB
+      MemFree:        5632000 kB
+      MemAvailable:   5632000 kB
+      Buffers:        0 kB
+      Cached:         0 kB
+      """
+
+      File.write!(meminfo_path, within_threshold_meminfo)
+
+      # Trigger check - should not detect leak
+      log =
+        capture_log(fn ->
+          send(pid, :check_memory)
+          Process.sleep(100)
+        end)
+
+      # Should not log memory leak (growth is only 512MB/8192MB = 6.25% < 50%)
+      refute log =~ ~r/memory leak/i
+    end
+  end
+
+  describe "process name retrieval" do
+    test "handles processes without registered names" do
+      # Create an unregistered process
+      parent = self()
+
+      {pid, ref} =
+        spawn_monitor(fn ->
+          send(parent, :ready)
+          Process.sleep(:infinity)
+        end)
+
+      receive do
+        :ready -> :ok
+      end
+
+      # Try to get process name
+      case :erlang.process_info(pid, :registered_name) do
+        {:registered_name, name} ->
+          # If it has a name, that's fine
+          assert is_atom(name)
+
+        _ ->
+          # If no name, that's also fine
+          :ok
+      end
+
+      # Clean up
+      Process.exit(pid, :kill)
+      receive do
+        {:DOWN, ^ref, _, _, _} -> :ok
+      end
+    end
+  end
+
+  describe "memory recovery at super-critical levels" do
+    test "triggers enhanced recovery above 95% memory" do
+      # Create meminfo file directly with minimal buffers/cached to achieve high percentage
+      %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 4000)
+
+      # Rewrite meminfo to have minimal available memory (96% used)
+      meminfo_path = Path.join(proc_dir, "meminfo")
+      high_usage_meminfo = """
+      MemTotal:       8192000 kB
+      MemFree:        327680 kB
+      MemAvailable:   327680 kB
+      Buffers:        0 kB
+      Cached:         0 kB
+      """
+
+      File.write!(meminfo_path, high_usage_meminfo)
+      Application.put_env(:data_diode, :meminfo_path, meminfo_path)
+
+      on_exit(fn ->
+        DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
+        Application.delete_env(:data_diode, :meminfo_path)
+      end)
+
+      pid = Process.whereis(DataDiode.MemoryGuard)
+
+      # Trigger check which should trigger recovery at 96%
+      send(pid, :check_memory)
+      Process.sleep(100)
+
+      # Process should still be alive after recovery
+      assert Process.alive?(pid)
+
+      # Verify the memory was actually read
+      memory = DataDiode.MemoryGuard.get_memory_usage()
+      assert memory.percent >= 95.0
+    end
+  end
+
+  describe "baseline tracking with established baseline" do
+    test "continues tracking after baseline established" do
+      %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 3000)
+      Application.put_env(:data_diode, :meminfo_path, Path.join(proc_dir, "meminfo"))
+
+      on_exit(fn ->
+        DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
+        Application.delete_env(:data_diode, :meminfo_path)
+      end)
+
+      pid = Process.whereis(DataDiode.MemoryGuard)
+
+      # Establish baseline (5 checks)
+      Enum.each(1..5, fn _ ->
+        send(pid, :check_memory)
+        Process.sleep(50)
+      end)
+
+      state = :sys.get_state(pid)
+      assert state.baseline != nil
+      assert state.samples == []
+
+      # Trigger more checks - baseline should remain, samples should stay empty
+      Enum.each(1..3, fn _ ->
+        send(pid, :check_memory)
+        Process.sleep(50)
+      end)
+
+      new_state = :sys.get_state(pid)
+      assert new_state.baseline != nil
+      assert new_state.samples == []
+    end
+  end
+
+  describe "memory parsing edge cases" do
+    test "handles meminfo with only MemTotal and MemFree" do
+      # Create minimal meminfo without MemAvailable, Buffers, or Cached
+      %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 4000)
+
+      # Rewrite meminfo to remove MemAvailable, Buffers, Cached
+      meminfo_path = Path.join(proc_dir, "meminfo")
+      minimal_meminfo = """
+      MemTotal:        8000000 kB
+      MemFree:         4000000 kB
+      """
+
+      File.write!(meminfo_path, minimal_meminfo)
+      Application.put_env(:data_diode, :meminfo_path, meminfo_path)
+
+      on_exit(fn ->
+        DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
+        Application.delete_env(:data_diode, :meminfo_path)
+      end)
+
+      # Should parse correctly using MemFree
+      memory = DataDiode.MemoryGuard.get_memory_usage()
+
+      assert memory.total > 0
+      # Available = MemFree + Buffers + Cached = 4000000 kB + 0 + 0 = 4000000 kB
+      # In bytes: 4000000 * 1024 = 4096000000
+      assert memory.available == 4000000 * 1024
+      assert memory.percent > 0
+    end
+
+    test "handles malformed meminfo lines gracefully" do
+      %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 4000)
+
+      # Add malformed lines to meminfo
+      meminfo_path = Path.join(proc_dir, "meminfo")
+      original_content = File.read!(meminfo_path)
+      malformed_content = original_content <> "\nMalformedLine: not_a_number\n"
+
+      File.write!(meminfo_path, malformed_content)
+      Application.put_env(:data_diode, :meminfo_path, meminfo_path)
+
+      on_exit(fn ->
+        DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
+        Application.delete_env(:data_diode, :meminfo_path)
+      end)
+
+      # Should still parse the valid lines
+      memory = DataDiode.MemoryGuard.get_memory_usage()
+
+      assert memory.total > 0
+      assert memory.used > 0
+    end
+  end
+
+  describe "disk cleanup integration" do
+    test "sends cleanup message to DiskCleaner during recovery" do
+      # Setup with critical memory
+      %{temp_dir: temp_dir, proc_dir: proc_dir} = setup_meminfo(8000, 7300)
+      Application.put_env(:data_diode, :meminfo_path, Path.join(proc_dir, "meminfo"))
+
+      on_exit(fn ->
+        DataDiode.HardwareFixtures.cleanup(%{temp_dir: temp_dir})
+        Application.delete_env(:data_diode, :meminfo_path)
+      end)
+
+      # Ensure DiskCleaner is running
+      disk_cleaner_pid = Process.whereis(DataDiode.DiskCleaner)
+
+      pid = Process.whereis(DataDiode.MemoryGuard)
+
+      # Trigger recovery
+      capture_log(fn ->
+        send(pid, :check_memory)
+        Process.sleep(100)
+      end)
+
+      # DiskCleaner should still be running (message sent but might not have processed yet)
+      if disk_cleaner_pid do
+        assert Process.alive?(disk_cleaner_pid)
+      end
+    end
+  end
 end

@@ -138,7 +138,7 @@ defmodule DataDiode.NetworkGuard do
         )
 
         %{up: false, interface: interface, error: "command_not_found"}
-      end
+    end
   end
 
   # History and flapping detection
