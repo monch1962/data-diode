@@ -128,10 +128,26 @@ defmodule DataDiode.NegativeTest do
 
     DataDiode.Metrics.reset_stats()
 
+    # Get original data_dir to restore later
+    original_data_dir = Application.get_env(:data_diode, :data_dir)
+
     # Ensure data_dir is set to a file so it fails
-    tmp_path = Path.join(System.tmp_dir!(), "disk_full_sim_file")
+    # Use a unique name with timestamp to avoid conflicts
+    unique_id = :erlang.unique_integer([:positive, :monotonic])
+    tmp_path = Path.join(System.tmp_dir!(), "disk_full_sim_file_#{unique_id}")
+
+    # Clean up if it exists from a previous run
+    File.rm(tmp_path)
+    File.rm_rf(tmp_path)
+
     File.write!(tmp_path, "")
     Application.put_env(:data_diode, :data_dir, tmp_path)
+
+    # Ensure we restore the original data_dir after the test
+    on_exit(fn ->
+      Application.put_env(:data_diode, :data_dir, original_data_dir)
+      File.rm(tmp_path)
+    end)
 
     packet = <<127, 0, 0, 1, 0, 80, "PAYLOAD">>
     checksum = :erlang.crc32(packet)
@@ -145,7 +161,6 @@ defmodule DataDiode.NegativeTest do
     # Verify metrics increased
     stats = DataDiode.Metrics.get_stats()
     assert stats.error_count
-    File.rm(tmp_path)
   end
 
   test "Environmental: Network Flapping Recovery" do

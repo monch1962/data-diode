@@ -318,18 +318,16 @@ defmodule DataDiode.PowerMonitor do
     broadcast_shutdown_imminent()
 
     # Flush all buffers
-    try do
-      GenServer.call(DataDiode.S2.Decapsulator, :flush_buffers, 5000)
-    catch
-      :exit, _ -> Logger.warning("PowerMonitor: Decapsulator flush timeout")
-    end
+    Logger.info("PowerMonitor: Flushing Decapsulator buffers")
+    DataDiode.S2.Decapsulator.flush_buffers()
 
     # Sync filesystem
     System.cmd("sync", [])
 
     # Give processes time to cleanup
     spawn(fn ->
-      Process.sleep(2000)
+      # Increased from 2 seconds to 10 seconds for better flush
+      Process.sleep(10_000)
 
       # Halt system (power off)
       System.cmd("shutdown", ["-h", "now"])

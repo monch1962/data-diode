@@ -51,11 +51,19 @@ defmodule DataDiode.S1.Listener do
   def handle_info(:accept_loop, listen_socket) do
     case :gen_tcp.accept(listen_socket, 500) do
       {:ok, client_socket} ->
-        Logger.info("S1: New connection accepted.")
+        # Check connection rate limit before accepting
+        case DataDiode.ConnectionRateLimiter.allow_connection?() do
+          :allow ->
+            Logger.info("S1: New connection accepted.")
 
-        case HandlerSupervisor.start_handler(client_socket) do
-          {:ok, pid} -> :gen_tcp.controlling_process(client_socket, pid)
-          _ -> :gen_tcp.close(client_socket)
+            case HandlerSupervisor.start_handler(client_socket) do
+              {:ok, pid} -> :gen_tcp.controlling_process(client_socket, pid)
+              _ -> :gen_tcp.close(client_socket)
+            end
+
+          {:deny, reason} ->
+            Logger.warning("S1: Connection rate limited: #{reason}")
+            :gen_tcp.close(client_socket)
         end
 
         send(self(), :accept_loop)

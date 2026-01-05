@@ -102,6 +102,40 @@ defmodule DataDiode.S1.TCPHandler do
     {:noreply, state}
   end
 
+  @impl true
+  def terminate(reason, %{socket: socket, src_ip: src_ip, src_port: src_port}) do
+    # Graceful shutdown
+    case reason do
+      :normal ->
+        Logger.debug("S1: Gracefully shutting down connection from #{src_ip}:#{src_port}")
+
+      :shutdown ->
+        Logger.info("S1: Gracefully shutting down connection from #{src_ip}:#{src_port}")
+
+      _ ->
+        Logger.warning(
+          "S1: Terminating handler for #{src_ip}:#{src_port}, reason: #{inspect(reason)}"
+        )
+    end
+
+    # Try to send FIN to allow graceful shutdown
+    try do
+      :gen_tcp.shutdown(socket, :write)
+      # Small delay to allow ACK
+      Process.sleep(100)
+    rescue
+      _ -> :ok
+    end
+
+    # Close the socket
+    :gen_tcp.close(socket)
+    :ok
+  end
+
+  def terminate(_reason, _state) do
+    :ok
+  end
+
   defp encapsulator do
     Application.get_env(:data_diode, :encapsulator, DataDiode.S1.Encapsulator)
   end

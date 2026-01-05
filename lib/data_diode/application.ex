@@ -23,6 +23,9 @@ defmodule DataDiode.Application do
 
     # Define the children processes the supervisor must start and monitor.
     children = [
+      # 0. Circuit Breaker Registry (must be first)
+      {Registry, keys: :unique, name: DataDiode.CircuitBreakerRegistry},
+
       # 1. Operational Metrics Agent
       %{
         id: DataDiode.Metrics,
@@ -45,54 +48,57 @@ defmodule DataDiode.Application do
       # 5. System Monitoring
       {DataDiode.SystemMonitor, []},
 
-      # 6. Service 1: TCP Listener (S1)
+      # 6. Connection Rate Limiter (prevent DoS on accept loop)
+      {DataDiode.ConnectionRateLimiter, []},
+
+      # 7. Service 1: TCP Listener (S1)
       %{
         id: DataDiode.S1.Listener,
         start: {DataDiode.S1.Listener, :start_link, []},
         type: :worker
       },
 
-      # 7. Service 1: UDP Listener (S1)
+      # 8. Service 1: UDP Listener (S1)
       {DataDiode.S1.UDPListener, []},
 
-      # 8. Service 1: TCP Handler Supervisor (Dynamic)
+      # 9. Service 1: TCP Handler Supervisor (Dynamic)
       %{
         id: DataDiode.S1.HandlerSupervisor,
         start: {DataDiode.S1.HandlerSupervisor, :start_link, []},
         type: :supervisor
       },
 
-      # 9. Service 1: Encapsulator (S1 Worker)
+      # 10. Service 1: Encapsulator (S1 Worker)
       %{
         id: DataDiode.S1.Encapsulator,
         start: {DataDiode.S1.Encapsulator, :start_link, []},
         type: :worker
       },
 
-      # 10. Service 1: Heartbeat Generator
+      # 11. Service 1: Heartbeat Generator
       {DataDiode.S1.Heartbeat, []},
 
-      # 11. Service 2: Heartbeat Monitor
+      # 12. Service 2: Heartbeat Monitor
       {DataDiode.S2.HeartbeatMonitor, []},
 
-      # 12. Service 2: UDP Listener (S2)
+      # 13. Service 2: UDP Listener (S2)
       %{
         id: DataDiode.S2.Listener,
         start: {DataDiode.S2.Listener, :start_link, []},
         type: :worker
       },
 
-      # 13. Service 2: Async Task Supervisor
+      # 14. Service 2: Async Task Supervisor
       # OT Hardening: Limit concurrent processing tasks
       {Task.Supervisor, name: DataDiode.S2.TaskSupervisor, max_children: 200},
 
-      # 14. Network Interface Monitoring (NEW for harsh environments)
+      # 15. Network Interface Monitoring (NEW for harsh environments)
       {DataDiode.NetworkGuard, []},
 
-      # 15. Autonomous Maintenance (Enhanced for harsh environments)
+      # 16. Autonomous Maintenance (Enhanced for harsh environments)
       {DataDiode.DiskCleaner, []},
 
-      # 16. Hardware Watchdog Monitoring
+      # 17. Hardware Watchdog Monitoring
       {DataDiode.Watchdog, []}
     ]
 

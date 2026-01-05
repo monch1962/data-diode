@@ -17,8 +17,28 @@ defmodule DataDiode.S2.Decapsulator do
   alias DataDiode.S2.HeartbeatMonitor
 
   # --------------------------------------------------------------------------
-  # API Function
+  # API Functions
   # --------------------------------------------------------------------------
+
+  @doc """
+  Flushes any pending writes and ensures data is synced to disk.
+  Called during graceful shutdown to prevent data loss.
+  """
+  @spec flush_buffers() :: :ok
+  def flush_buffers do
+    Logger.info("S2 Decapsulator: Flushing buffers and syncing filesystem")
+
+    # Sync filesystem to ensure all writes are persisted
+    case System.cmd("sync", [], stderr_to_stdout: true) do
+      {_, 0} ->
+        Logger.info("S2 Decapsulator: Filesystem sync completed")
+        :ok
+
+      {output, _} ->
+        Logger.warning("S2 Decapsulator: Filesystem sync had issues: #{output}")
+        :ok
+    end
+  end
 
   @doc "Decapsulates a UDP packet to extract the original TCP payload and metadata."
   @callback process_packet(binary()) :: :ok | {:error, term()}

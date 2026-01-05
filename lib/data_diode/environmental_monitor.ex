@@ -91,8 +91,11 @@ defmodule DataDiode.EnvironmentalMonitor do
   Reads all environmental sensors and evaluates conditions.
   Returns a map with current readings and status.
   """
-  @spec monitor_all_zones() :: environmental_readings()
-  def monitor_all_zones do
+  @spec monitor_all_zones(thermal_state()) :: environmental_readings()
+  def monitor_all_zones(thermal_state \\ nil) do
+    # If thermal_state is nil, get it from the server (for external calls)
+    state = thermal_state || get_thermal_state_from_server()
+
     %{
       cpu: read_cpu_temp(),
       storage: read_storage_temp(),
@@ -100,7 +103,16 @@ defmodule DataDiode.EnvironmentalMonitor do
       humidity: read_humidity(),
       timestamp: System.system_time(:millisecond)
     }
-    |> evaluate_conditions()
+    |> evaluate_conditions(state)
+  end
+
+  defp get_thermal_state_from_server do
+    try do
+      %{thermal_state: state} = GenServer.call(__MODULE__, :get_thermal_state)
+      state
+    rescue
+      _ -> @normal_state
+    end
   end
 
   @doc """
@@ -115,8 +127,19 @@ defmodule DataDiode.EnvironmentalMonitor do
   @spec handle_call(:get_state, GenServer.from(), state()) ::
           {:reply, environmental_readings(), state()}
   def handle_call(:get_state, _from, state) do
-    current = monitor_all_zones()
+    # Get readings without making GenServer calls (avoid deadlock)
+    current = monitor_all_zones(state.thermal_state)
     {:reply, current, state}
+  end
+
+  @impl true
+  def handle_call(:get_thermal_state, _from, state) do
+    {:reply, state.thermal_state, state}
+  end
+
+  @impl true
+  def handle_cast({:set_thermal_state, new_state}, state) do
+    {:noreply, %{state | thermal_state: new_state}}
   end
 
   # Reading functions
@@ -236,21 +259,19 @@ defmodule DataDiode.EnvironmentalMonitor do
 
   # Condition evaluation with hysteresis
 
-  defp evaluate_conditions(readings) do
-    state = get_internal_state()
-
-    evaluate_conditions_in_priority_order(readings, state)
+  defp evaluate_conditions(readings, thermal_state) do
+    evaluate_conditions_in_priority_order(readings, thermal_state)
   end
 
-  defp evaluate_conditions_in_priority_order(readings, state) do
+  defp evaluate_conditions_in_priority_order(readings, thermal_state) do
     cond do
       handle_critical_hot?(readings) -> handle_critical_hot(readings)
-      handle_warning_hot?(readings, state) -> handle_warning_hot(readings)
+      handle_warning_hot?(readings, thermal_state) -> handle_warning_hot(readings)
       handle_critical_cold?(readings) -> handle_critical_cold(readings)
-      handle_warning_cold?(readings, state) -> handle_warning_cold(readings)
+      handle_warning_cold?(readings, thermal_state) -> handle_warning_cold(readings)
       handle_critical_humidity?(readings) -> handle_critical_humidity(readings)
       handle_warning_humidity?(readings) -> handle_warning_humidity(readings)
-      true -> handle_normal_conditions(readings, state)
+      true -> handle_normal_conditions(readings, thermal_state)
     end
   end
 
@@ -301,13 +322,18 @@ defmodule DataDiode.EnvironmentalMonitor do
     Map.put(readings, :status, :warning_humidity)
   end
 
-  defp handle_normal_conditions(readings, state) do
-    if state != @normal_state do
+  defp handle_normal_conditions(readings, thermal_state) do
+    if thermal_state != @normal_state do
       Logger.info("EnvironmentalMonitor: Conditions normalized, returning to normal mode")
-      set_internal_state(@normal_state)
+      # Update the GenServer state to normal
+      update_thermal_state(@normal_state)
     end
 
     Map.put(readings, :status, :normal)
+  end
+
+  defp update_thermal_state(new_state) do
+    GenServer.cast(__MODULE__, {:set_thermal_state, new_state})
   end
 
   defp any_critical_hot?(readings) do
@@ -397,11 +423,11 @@ defmodule DataDiode.EnvironmentalMonitor do
   # Mitigation actions
 
   defp activate_cooling_mode do
-    state = get_internal_state()
+    current_state = get_thermal_state_from_server()
 
-    if state != @cooling_state do
+    if current_state != @cooling_state do
       Logger.warning("EnvironmentalMonitor: Activating cooling mode")
-      set_internal_state(@cooling_state)
+      update_thermal_state(@cooling_state)
 
       # In production, this would:
       # - Increase fan speed
@@ -415,11 +441,11 @@ defmodule DataDiode.EnvironmentalMonitor do
   end
 
   defp activate_heating_mode do
-    state = get_internal_state()
+    current_state = get_thermal_state_from_server()
 
-    if state != @heating_state do
+    if current_state != @heating_state do
       Logger.warning("EnvironmentalMonitor: Activating heating mode")
-      set_internal_state(@heating_state)
+      update_thermal_state(@heating_state)
 
       # In production, this would:
       # - Enable heating elements
@@ -438,19 +464,9 @@ defmodule DataDiode.EnvironmentalMonitor do
       "EnvironmentalMonitor: EMERGENCY SHUTDOWN - Critical temperatures: #{inspect(readings)}"
     )
 
-    # Flush all buffers (if Decapsulator is running)
-    case Process.whereis(DataDiode.S2.Decapsulator) do
-      nil ->
-        Logger.warning("EnvironmentalMonitor: S2.Decapsulator not running, skipping buffer flush")
-
-      _pid ->
-        try do
-          GenServer.call(DataDiode.S2.Decapsulator, :flush_buffers, 5000)
-        rescue
-          error ->
-            Logger.error("EnvironmentalMonitor: Failed to flush buffers: #{inspect(error)}")
-        end
-    end
+    # Flush all buffers
+    Logger.info("EnvironmentalMonitor: Flushing Decapsulator buffers")
+    DataDiode.S2.Decapsulator.flush_buffers()
 
     # Sync filesystem
     System.cmd("sync", [])
@@ -464,17 +480,5 @@ defmodule DataDiode.EnvironmentalMonitor do
     else
       Logger.warning("EnvironmentalMonitor: Emergency shutdown disabled by configuration")
     end
-  end
-
-  # State management for hysteresis
-  defp get_internal_state do
-    case Process.get(:env_monitor_state) do
-      nil -> @normal_state
-      state -> state
-    end
-  end
-
-  defp set_internal_state(state) do
-    Process.put(:env_monitor_state, state)
   end
 end

@@ -69,6 +69,8 @@ defmodule DataDiode.S1.Encapsulator do
         s2_port = resolve_s2_port()
         limit = resolve_rate_limit()
 
+        Logger.info("S1 Encapsulator: Started with dest_port=#{s2_port}, limit=#{limit}")
+
         {:ok,
          %{
            socket: socket,
@@ -151,6 +153,12 @@ defmodule DataDiode.S1.Encapsulator do
   end
 
   @impl true
+  def terminate(_reason, %{socket: socket}) when is_port(socket) do
+    Logger.debug("S1 Encapsulator: Closing UDP socket")
+    :gen_udp.close(socket)
+    :ok
+  end
+
   def terminate(_reason, _state) do
     :ok
   end
@@ -236,15 +244,56 @@ defmodule DataDiode.S1.Encapsulator do
   end
 
   defp send_udp_packet(socket, dest_port, packet) do
-    case :gen_udp.send(socket, @s2_udp_target, dest_port, packet) do
+    # Direct send with retry logic
+    Logger.info(
+      "S1 Encapsulator: Sending to port #{dest_port}, packet size: #{byte_size(packet)}"
+    )
+
+    result = send_with_retry(socket, dest_port, packet)
+
+    case result do
       :ok ->
+        Logger.info("S1 Encapsulator: Successfully sent packet to port #{dest_port}")
         DataDiode.Metrics.inc_packets()
-        :ok
 
       {:error, reason} ->
+        Logger.error("S1 Encapsulator: Failed to send packet: #{inspect(reason)}")
         DataDiode.Metrics.inc_errors()
-        Logger.warning("S1 Encapsulator: Failed to send packet: #{inspect(reason)}")
     end
+
+    :ok
+  end
+
+  # Retry logic for transient errors
+  defp send_with_retry(socket, dest_port, packet, retries \\ 3) do
+    Logger.debug(
+      "S1 Encapsulator: Sending UDP packet to #{:inet.ntoa(@s2_udp_target)}:#{dest_port}, size: #{byte_size(packet)}"
+    )
+
+    case :gen_udp.send(socket, @s2_udp_target, dest_port, packet) do
+      :ok ->
+        :ok
+
+      {:error, :eagain} when retries > 0 ->
+        # Transient error, retry with exponential backoff
+        backoff = calculate_backoff(retries)
+        Process.sleep(backoff)
+        send_with_retry(socket, dest_port, packet, retries - 1)
+
+      {:error, :econnrefused} when retries > 0 ->
+        # S2 might be restarting, retry with longer backoff
+        Process.sleep(100)
+        send_with_retry(socket, dest_port, packet, retries - 1)
+
+      {:error, reason} ->
+        # Permanent error, don't retry
+        {:error, reason}
+    end
+  end
+
+  defp calculate_backoff(retries) do
+    # Exponential backoff: 10ms, 20ms, 40ms, 80ms...
+    trunc(:math.pow(2, 4 - retries) * 10)
   end
 
   # Per-IP rate limiting helper
