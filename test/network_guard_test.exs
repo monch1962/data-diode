@@ -598,8 +598,10 @@ defmodule DataDiode.NetworkGuardTest do
       down_state = %{
         state
         | flapping: false,
-          interface_state: %{s1: :up, s2: :up},  # Previous state was up
-          history: []  # Clear history to prevent flapping detection
+          # Previous state was up
+          interface_state: %{s1: :up, s2: :up},
+          # Clear history to prevent flapping detection
+          history: []
       }
 
       :sys.replace_state(pid, fn _ -> down_state end)

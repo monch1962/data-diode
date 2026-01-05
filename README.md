@@ -77,51 +77,81 @@ export ALLOWED_PROTOCOLS="MODBUS,MQTT"
 The Data Diode is engineered for **high reliability** and **harsh environment operation** with comprehensive failure prevention and recovery mechanisms:
 
 ### Circuit Breaker Pattern
+
 **Prevents cascading failures** when S2 is unavailable:
-- **Closed** (normal): Requests pass through
-- **Open** (failing): After 5 failures in 60 seconds, circuit opens for 30 seconds
-- **Half-Open** (testing): Allows limited requests to test recovery
+
+- **States**: Closed → Open → Half-Open → Closed
+- **Closed** (normal): Requests pass through, failure count reset on success
+- **Open** (failing): After 5 consecutive failures, circuit opens for 30 seconds
+- **Half-Open** (testing): Allows limited requests (max 3) to test recovery
+- **Success Threshold**: 2 consecutive successes in half-open to close circuit
+- **Failure Threshold**: 5 failures trigger open state
+- **Timeout**: 30 seconds in open state before half-open transition
 - Protects S1 from S2 crashes, network partitions, and overload
-- Automatically recovers when service is restored
+- Uses Registry-based process management for dynamic circuit breakers
+- Thread-safe state updates with proper GenServer serialization
 
 ### Connection Rate Limiting
+
 **Prevents DoS attacks** and resource exhaustion:
-- Token bucket algorithm (10 connections/second default)
-- Burst allowance up to 100 connections
-- Per-IP rate limiting (100 packets/second per IP)
-- Automatic backpressure under load
+
+- **Global Token Bucket**: 10 connections/second default, configurable via env
+- **Burst Capacity**: Up to 100 connections allowed in burst
+- **Per-IP Rate Limiting**: 100 packets/second per source IP
+- **Refill Interval**: Tokens replenish every 1000ms
+- **Dynamic Rate Adjustment**: Supports runtime rate limit changes
+- **Automatic Backpressure**: Returns `{:deny, reason}` when limit exceeded
+- **Metrics Integration**: All rejections tracked in error metrics
+- **GenServer-based**: Thread-safe token bucket with proper state management
 
 ### Graceful Shutdown
+
 **Zero data loss** during shutdown:
-- Buffer flush ensures all data written to disk
-- Filesystem sync for persistence
-- 10-second grace period (increased from 2 seconds)
-- TCP FIN packets for clean connection termination
-- UDP socket cleanup on process termination
+
+- **Buffer Flush**: All pending writes flushed before termination
+- **Filesystem Sync**: Calls `sync` command for disk persistence
+- **10-Second Grace Period**: Increased from 2 seconds for slower hardware
+- **TCP FIN Packets**: Clean connection termination with `:gen_tcp.shutdown(:write)`
+- **UDP Socket Cleanup**: Proper socket closure in terminate/2 callbacks
+- **Connection Timeout**: 100ms delay after FIN for ACK reception
+- **Error Handling**: Graceful degradation if shutdown fails
+- **Process Dictionary-Free**: Refactored from process dictionary to GenServer state
 
 ### Retry with Exponential Backoff
+
 **Handles transient failures** automatically:
-- UDP send retries for `:eagain` and `:econnrefused` errors
-- Exponential backoff: 10ms → 20ms → 40ms → 80ms
-- Up to 3 retry attempts before giving up
-- Circuit breaker prevents retry storms
+
+- **UDP Send Retries**: Automatic retry on `:eagain` and `:econnrefused` errors
+- **Exponential Backoff**: 10ms → 20ms → 40ms → 80ms
+- **Max Retries**: Up to 3 retry attempts before failing
+- **Connection Refusal**: 100ms backoff for `:econnrefused` (S2 restarting)
+- **Circuit Breaker Integration**: Prevents retry storms during outages
+- **Logging**: Detailed debug logging for troubleshooting
+- **Error Tracking**: All retry failures recorded in metrics
 
 ### Supervision Tree Resilience
+
 **Automatic recovery** from process crashes:
+
 - **50 restarts** allowed in 10 seconds (harsh environment tolerance)
 - One-for-one supervision for isolated failures
 - Dynamic supervisor for TCP handlers (max 100 concurrent)
 - Restart intensity monitoring prevents crash loops
 
 ### Advanced Testing
-**Comprehensive test coverage** (497 tests, 85%+ coverage):
+
+**Comprehensive test coverage** (495 tests, 85%+ coverage):
+
 - **Chaos Engineering**: Process crashes, resource exhaustion, cascading failures
-- **Concurrent State**: Race condition detection, lock contention
-- **Graceful Shutdown**: Buffer flush verification, connection cleanup
+- **Concurrent State**: Race condition detection, lock contention, state consistency
+- **Graceful Shutdown**: Buffer flush verification, connection cleanup, socket management
 - **Long-term Robustness**: 24-hour soak tests, memory leak detection
+- **Circuit Breaker Testing**: State transition verification, concurrent access patterns
 
 ### Resource Protection
+
 **Prevents resource exhaustion**:
+
 - **Memory**: MemoryGuard with 80% warning, 90% critical thresholds
 - **Disk**: DiskCleaner with 15% free space threshold
 - **Power**: UPS monitoring with graceful shutdown on power loss

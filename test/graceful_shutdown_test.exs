@@ -56,6 +56,7 @@ defmodule GracefulShutdownTest do
         # Verify new process has a new socket
         new_pid = Process.whereis(DataDiode.S1.Encapsulator)
         assert new_pid != nil
+
         if new_pid != pid do
           new_state = :sys.get_state(new_pid)
           assert Map.has_key?(new_state, :socket)
