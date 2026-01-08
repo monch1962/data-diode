@@ -2,6 +2,24 @@ defmodule DataDiode.ConfigValidatorTest do
   use ExUnit.Case, async: false
   alias DataDiode.ConfigValidator
 
+  setup do
+    # Store original values to restore after tests
+    original_s1_port = Application.get_env(:data_diode, :s1_port)
+    original_s2_port = Application.get_env(:data_diode, :s2_port)
+    original_data_dir = Application.get_env(:data_diode, :data_dir)
+    original_allowed_protocols = Application.get_env(:data_diode, :allowed_protocols)
+
+    on_exit(fn ->
+      # Always restore to safe defaults to prevent breaking subsequent tests
+      Application.put_env(:data_diode, :s1_port, original_s1_port || 4000)
+      Application.put_env(:data_diode, :s2_port, original_s2_port || 42_001)
+      Application.put_env(:data_diode, :data_dir, original_data_dir || "./test_data")
+      Application.put_env(:data_diode, :allowed_protocols, original_allowed_protocols || [:any])
+    end)
+
+    :ok
+  end
+
   describe "validate!/0" do
     test "validates successfully with valid configuration" do
       Application.put_env(:data_diode, :s1_port, 8080)
