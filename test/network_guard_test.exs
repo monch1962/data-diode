@@ -5,6 +5,12 @@ defmodule DataDiode.NetworkGuardTest do
 
   doctest DataDiode.NetworkGuard
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   describe "basic operation" do
     setup do
       :ok

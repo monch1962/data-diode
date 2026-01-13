@@ -16,6 +16,12 @@ defmodule DataDiode.S1.ListenerTest do
     :ok
   end
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   test "listen_options returns expected settings" do
     opts = Listener.listen_options()
     assert :inet in opts

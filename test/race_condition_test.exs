@@ -12,6 +12,12 @@ defmodule DataDiode.RaceConditionTest do
     :ok
   end
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   test "S2.Listener task exhaustion is now visible" do
     # 1. Start a real listener with a unique name
     {:ok, pid} = Listener.start_link(name: :s2_exhaustion_test_v2)

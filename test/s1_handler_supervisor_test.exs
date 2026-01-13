@@ -2,6 +2,12 @@ defmodule DataDiode.S1.HandlerSupervisorTest do
   use ExUnit.Case, async: false
   alias DataDiode.S1.HandlerSupervisor
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   test "start_handler/1 starts a TCPHandler process" do
     # We need a dummy socket or a real one.
     # TCPHandler.start_link requires a socket.

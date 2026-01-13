@@ -7,6 +7,12 @@ defmodule DataDiode.PowerMonitorTest do
 
   doctest DataDiode.PowerMonitor
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   describe "with UPS battery at normal level" do
     setup do
       %{temp_dir: temp_dir, power_dir: power_dir, battery_level: level} =

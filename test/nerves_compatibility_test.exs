@@ -6,6 +6,12 @@ defmodule DataDiode.NervesCompatibilityTest do
   use ExUnit.Case
   require Logger
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   test "verify no hardcoded absolute paths in logic" do
     # Nerves uses a minimal layout. We should check that logic doesn't assume standard Ubuntu/Debian paths.
     # Excluded: /sys/ (thermal/hardware), /tmp/ (standard), /proc/ (kernel), /dev/ (devices), /var/ (logs)

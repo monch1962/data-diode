@@ -61,6 +61,12 @@ defmodule DataDiode.MultiProtocolIngressTest do
     }
   end
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   test "Concurrent TCP (Modbus) and UDP (SNMP) Ingress", %{
     s1_tcp_port: tcp_port,
     s1_udp_port: udp_port

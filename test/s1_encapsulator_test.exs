@@ -51,6 +51,12 @@ defmodule DataDiode.S1.EncapsulatorTest do
     end
   end
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   test "encapsulate_and_send/3 sends correct packet", %{receiver_socket: _socket} do
     # Send a packet
     src_ip = "192.168.1.5"

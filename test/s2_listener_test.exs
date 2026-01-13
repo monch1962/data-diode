@@ -21,6 +21,12 @@ defmodule DataDiode.S2.ListenerTest do
   end
 
   # Test case 1: Successful packet reception and delegation
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   test "udp_options handles valid IP" do
     Application.put_env(:data_diode, :s2_ip, "127.0.0.1")
     opts = Listener.udp_options()

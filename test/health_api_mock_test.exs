@@ -6,6 +6,12 @@ defmodule DataDiode.HealthAPIMockTest do
 
   @opts DataDiode.HealthAPI.init([])
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   describe "helper functions" do
     test "parses uptime from /proc/uptime format" do
       # Test the parsing logic

@@ -33,6 +33,12 @@ defmodule DataDiode.OperationalModulesTest do
     :ok
   end
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   test "Comprehensive Coverage Booster" do
     # --- 1. SystemMonitor ---
     # Thermal success

@@ -16,6 +16,12 @@ defmodule DataDiode.DiskCleanerEnhancedTest do
 
   doctest DataDiode.DiskCleaner
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   describe "disk cleanup operations" do
     setup do
       temp_dir = create_temp_dir("disk_cleaner")

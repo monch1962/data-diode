@@ -21,6 +21,12 @@ defmodule DataDiode.OTHardeningTest do
     {:ok, data_dir: data_dir}
   end
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   test "S1.Encapsulator adds CRC32 and S2.Decapsulator verifies it" do
     payload = "SECURE_DATA"
     ip = "127.0.0.1"

@@ -7,6 +7,12 @@ defmodule DataDiode.MemoryGuardTest do
 
   doctest DataDiode.MemoryGuard
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   describe "with valid memory configuration" do
     setup do
       # 8GB total, 4GB used

@@ -4,6 +4,12 @@ defmodule DataDiode.DiskCleanerTest do
   alias DataDiode.ConfigHelpers
   alias DataDiode.DiskCleaner
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   test "get_disk_free_percent handles df output correctly" do
     # This is hard to mock System.cmd without Mox, but we can test the parsing logic
     # if we expose it, or just rely on the real command on Mac/Linux.

@@ -29,6 +29,12 @@ defmodule DataDiode.RateLimiterTest do
     {:ok, test_name: test_name}
   end
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   describe "rate limiting" do
     test "allows packets under the rate limit", %{test_name: test_name} do
       assert RateLimiter.check_rate_limit("192.168.1.1") == :allow

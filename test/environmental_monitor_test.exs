@@ -7,6 +7,12 @@ defmodule DataDiode.EnvironmentalMonitorTest do
 
   doctest DataDiode.EnvironmentalMonitor
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   describe "with full thermal sensors" do
     setup do
       %{temp_dir: temp_dir, thermal_base: thermal_base} =

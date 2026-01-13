@@ -9,7 +9,17 @@
       "Bash(npx markdownlint-cli:*)",
       "Bash(cat:*)",
       "Bash(mix format:*)",
-      "Bash(mix compile:*)"
+      "Bash(mix compile:*)",
+      "Bash(for:*)",
+      "Bash(do echo:*)",
+      "Bash(done:*)",
+      "Bash(tee:*)",
+      "Bash(do:*)",
+      "Bash(if grep -q \"Process\\\\.whereis\\\\|GenServer\\\\.\" \"$file\")",
+      "Bash(then)",
+      "Bash(if ! grep -q \"Application\\\\.ensure_all_started\" \"$file\")",
+      "Bash(echo:*)",
+      "Bash(fi:*)"
     ]
   }
 }

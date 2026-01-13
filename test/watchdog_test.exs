@@ -3,6 +3,12 @@ defmodule DataDiode.WatchdogTest do
   import ExUnit.CaptureLog
   alias DataDiode.Watchdog
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   describe "start_link/1" do
     test "starts the watchdog server" do
       {:ok, pid} = Watchdog.start_link(name: :watchdog_test_unique)

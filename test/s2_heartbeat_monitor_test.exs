@@ -2,6 +2,12 @@ defmodule DataDiode.S2.HeartbeatMonitorTest do
   use ExUnit.Case, async: false
   alias DataDiode.S2.HeartbeatMonitor
 
+  # Ensure application is started for all tests
+  setup do
+    Application.ensure_all_started(:data_diode)
+    :ok
+  end
+
   describe "start_link/1" do
     test "starts the heartbeat monitor server with unique name" do
       {:ok, pid} = HeartbeatMonitor.start_link(name: :heartbeat_test_unique)
