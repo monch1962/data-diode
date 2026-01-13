@@ -1,0 +1,69 @@
+#!/bin/bash
+# Pre-commit hook for Data Diode project
+# Runs static analysis and tests before allowing commits
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}🔍 Running pre-commit checks...${NC}"
+
+# Track time
+START_TIME=$(date +%s)
+
+# Check if mix is available
+if ! command -v mix &> /dev/null; then
+    echo -e "${RED}❌ Elixir/Mix not found. Please install Elixir.${NC}"
+    exit 1
+fi
+
+# Check formatting
+echo -e "${BLUE}📝 Checking code formatting...${NC}"
+if ! mix format --check-formatted; then
+  echo -e "${RED}❌ Code is not formatted.${NC}"
+  echo -e "${YELLOW}💡 Run 'mix format' to fix.${NC}"
+  exit 1
+fi
+echo -e "${GREEN}✓ Code is properly formatted${NC}"
+
+# Run Credo (code quality checks)
+echo -e "${BLUE}🔎 Running Credo code quality checks...${NC}"
+if mix credo --strict --format=oneline 2>&1 | grep -q "Analysis failed"; then
+  echo -e "${YELLOW}⚠️  Credo found code quality issues. Please review and fix.${NC}"
+  echo -e "${YELLOW}💡 Run 'mix credo' to see issues, 'mix credo --strict' to enforce them.${NC}"
+  # Don't fail the commit, just warn
+else
+  echo -e "${GREEN}✓ Code quality checks passed${NC}"
+fi
+
+# Check for markdown linting if markdownlint is available
+if command -v npx &> /dev/null && [ -f "package.json" ] || npx markdownlint-cli --version &> /dev/null; then
+  echo -e "${BLUE}📄 Checking Markdown formatting...${NC}"
+  if ! npx markdownlint-cli "*.md" "docs/*.md" --ignore CLAUDE.md 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Markdown linting issues found. Run 'npx markdownlint-cli \"*.md\" \"docs/*.md\" --fix'${NC}"
+    # Don't fail the commit
+  else
+    echo -e "${GREEN}✓ Markdown formatting is correct${NC}"
+  fi
+fi
+
+# Run full test suite to ensure no state pollution issues
+echo -e "${BLUE}🧪 Running test suite (this may take 30-40 seconds)...${NC}"
+if ! mix test; then
+  echo -e "${RED}❌ Tests failed. Please fix failing tests before committing.${NC}"
+  exit 1
+fi
+echo -e "${GREEN}✓ All tests passed${NC}"
+
+# Calculate elapsed time
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+
+echo -e "${GREEN}✅ Pre-commit checks passed! (took ${ELAPSED}s)${NC}"
+echo -e "${BLUE}📝 Proceeding with commit...${NC}"
+

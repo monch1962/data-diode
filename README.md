@@ -148,6 +148,19 @@ The Data Diode is engineered for **high reliability** and **harsh environment op
 - **Long-term Robustness**: 24-hour soak tests, memory leak detection
 - **Circuit Breaker Testing**: State transition verification, concurrent access patterns
 
+**Test Isolation**: All async:false tests ensure Application startup to prevent race conditions and intermittent failures.
+
+### Pre-Commit Hooks
+
+**Automated quality checks** before commits:
+
+- **Code Formatting**: Enforces `mix format` with `--check-formatted` flag
+- **Credo Linting**: Runs strict code quality checks (warnings only, non-blocking)
+- **Full Test Suite**: Runs all 495 tests to ensure no regressions
+- **Fast Feedback**: Catches issues before they reach the repository
+
+To bypass pre-commit hooks (use sparingly): `git commit --no-verify`
+
 ### Resource Protection
 
 **Prevents resource exhaustion**:
@@ -164,8 +177,26 @@ The Data Diode is engineered for **high reliability** and **harsh environment op
 
 - Elixir (1.10+)
 - Erlang/OTP (21+)
+- (Optional) Node.js/npm for markdown linting
 
-### Installation
+### Quick Setup (Recommended)
+
+Run the automated setup script:
+
+```bash
+git clone [your-repo-link] data_diode
+cd data_diode
+./scripts/setup.sh
+```
+
+This script will:
+
+- Install Elixir dependencies
+- Install npm dependencies (if available)
+- Setup pre-commit hooks
+- Run tests to verify your environment
+
+### Manual Setup
 
 Clone the repository:
 
@@ -178,6 +209,19 @@ Install dependencies:
 
 ```bash
 mix deps.get
+```
+
+Setup pre-commit hooks (manual):
+
+```bash
+cp scripts/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+Run tests to verify setup:
+
+```bash
+mix test
 ```
 
 ## ⚙️ Configuration
